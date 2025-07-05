@@ -91,7 +91,7 @@ pub fn create_best_detector() -> Box<dyn SimdDetector> {
     #[cfg(target_arch = "aarch64")]
     {
         if std::arch::is_aarch64_feature_detected!("neon") {
-            return Box::new(aarch64::NeonDetector::new());
+            return Box::new(aarch64::AArch64SimdDetector::new());
         }
     }
     

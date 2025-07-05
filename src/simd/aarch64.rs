@@ -32,7 +32,7 @@ impl AArch64SimdDetector {
         }
     }
     
-    /// 使用NEON进行快速模式匹配
+    /// 使用NEON进行快速模式匹配（优化版本）
     #[cfg(target_arch = "aarch64")]
     unsafe fn neon_pattern_match(&self, haystack: &[u8], needle: &[u8]) -> Option<usize> {
         if !self.has_neon || needle.is_empty() || haystack.len() < needle.len() {
@@ -43,28 +43,49 @@ impl AArch64SimdDetector {
             return self.neon_find_byte(haystack, needle[0]);
         }
         
-        // 对于较长的模式，使用滑动窗口
+        // 对于多字节模式，使用优化的NEON实现
         let first_byte = needle[0];
+        let needle_vec = vdupq_n_u8(first_byte);
         let mut pos = 0;
         
-        while pos <= haystack.len() - needle.len() {
-            if let Some(candidate) = self.neon_find_byte(&haystack[pos..], first_byte) {
-                let actual_pos = pos + candidate;
-                if actual_pos + needle.len() <= haystack.len() {
-                    if haystack[actual_pos..actual_pos + needle.len()] == *needle {
-                        return Some(actual_pos);
+        // 批量处理16字节块
+        while pos + 16 <= haystack.len() {
+            let chunk = vld1q_u8(haystack.as_ptr().add(pos));
+            let cmp = vceqq_u8(chunk, needle_vec);
+            
+            // 使用位操作快速检查是否有首字节匹配
+            let mask = vget_lane_u64(vreinterpret_u64_u8(vorr_u8(
+                vget_low_u8(cmp),
+                vget_high_u8(cmp)
+            )), 0);
+            
+            if mask != 0 {
+                // 有首字节匹配，逐个检查完整模式
+                for i in 0..16 {
+                    let check_pos = pos + i;
+                    if check_pos + needle.len() <= haystack.len() && haystack[check_pos] == first_byte {
+                        if haystack[check_pos..check_pos + needle.len()] == *needle {
+                            return Some(check_pos);
+                        }
                     }
                 }
-                pos = actual_pos + 1;
-            } else {
-                break;
             }
+            
+            pos += 16;
+        }
+        
+        // 处理剩余字节
+        while pos + needle.len() <= haystack.len() {
+            if haystack[pos..pos + needle.len()] == *needle {
+                return Some(pos);
+            }
+            pos += 1;
         }
         
         None
     }
     
-    /// 使用NEON查找单个字节
+    /// 使用NEON查找单个字节（优化版本）
     #[cfg(target_arch = "aarch64")]
     unsafe fn neon_find_byte(&self, data: &[u8], byte: u8) -> Option<usize> {
         if !self.has_neon || data.is_empty() {
@@ -79,15 +100,24 @@ impl AArch64SimdDetector {
             let chunk = vld1q_u8(data.as_ptr().add(pos));
             let cmp = vceqq_u8(chunk, needle);
             
-            // 检查是否有匹配
-            let mask = vget_lane_u64(vreinterpret_u64_u8(vorr_u8(
-                vget_low_u8(cmp),
-                vget_high_u8(cmp)
-            )), 0);
+            // 使用更高效的方法检查匹配
+            let mask_low = vget_low_u8(cmp);
+            let mask_high = vget_high_u8(cmp);
             
-            if mask != 0 {
-                // 找到匹配，需要确定具体位置
-                for i in 0..16 {
+            // 检查低8字节
+            let low_mask = vget_lane_u64(vreinterpret_u64_u8(mask_low), 0);
+            if low_mask != 0 {
+                for i in 0..8 {
+                    if data[pos + i] == byte {
+                        return Some(pos + i);
+                    }
+                }
+            }
+            
+            // 检查高8字节
+            let high_mask = vget_lane_u64(vreinterpret_u64_u8(mask_high), 0);
+            if high_mask != 0 {
+                for i in 8..16 {
                     if pos + i < data.len() && data[pos + i] == byte {
                         return Some(pos + i);
                     }
@@ -135,7 +165,7 @@ impl AArch64SimdDetector {
         None
     }
     
-    /// 使用NEON进行字节计数
+    /// 使用NEON进行字节计数（优化版本）
     #[cfg(target_arch = "aarch64")]
     unsafe fn neon_count_bytes(&self, data: &[u8], byte: u8) -> usize {
         if !self.has_neon || data.is_empty() {
@@ -151,22 +181,16 @@ impl AArch64SimdDetector {
             let chunk = vld1q_u8(data.as_ptr().add(pos));
             let cmp = vceqq_u8(chunk, needle);
             
-            // 计算匹配的字节数
-            // 使用更高效的方法来计算匹配数
-            let mask = vget_lane_u64(vreinterpret_u64_u8(vorr_u8(
-                vget_low_u8(cmp),
-                vget_high_u8(cmp)
-            )), 0);
+            // 使用NEON指令直接计算匹配数
+            // 将比较结果转换为计数
+            let low = vget_low_u8(cmp);
+            let high = vget_high_u8(cmp);
             
-            if mask != 0 {
-                // 逐字节检查匹配
-                for i in 0..16 {
-                    if pos + i < data.len() && data[pos + i] == byte {
-                        count += 1;
-                    }
-                }
-            }
+            // 每个匹配的字节为0xFF，计算总和
+            let low_sum = vaddv_u8(vshr_n_u8(low, 7));
+            let high_sum = vaddv_u8(vshr_n_u8(high, 7));
             
+            count += (low_sum + high_sum) as usize;
             pos += 16;
         }
         
