@@ -240,6 +240,34 @@ impl ProtocolDetector for DefaultProtocolDetector {
             }
         }
         
+        // 运行所有全局探测器（支持未知协议的探测器）
+        let all_probes = self.registry.get_all_probes();
+        for probe in all_probes {
+            // 检查是否需要更多数据
+            if probe.needs_more_data(data) {
+                continue;
+            }
+            
+            // 检查超时
+            if context.is_timeout(self.detection_config.timeout) {
+                break;
+            }
+            
+            // 执行探测
+            match probe.probe(data, &mut context) {
+                Ok(Some(protocol_info)) => {
+                    all_results.push(protocol_info);
+                }
+                Ok(None) => {
+                    // 探测器没有检测到协议，继续
+                }
+                Err(e) => {
+                    // 记录错误但继续其他探测器
+                    eprintln!("探测器 {} 出错: {}", probe.name(), e);
+                }
+            }
+        }
+        
         // 聚合结果
         let best_result = self.aggregator.aggregate(all_results)
             .ok_or_else(|| DetectorError::NoProtocolDetected("未检测到任何协议".to_string()))?;

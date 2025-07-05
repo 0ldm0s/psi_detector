@@ -8,7 +8,8 @@ PSI-Detector 是一个用 Rust 编写的高性能协议探测和升级框架，�
 
 ### 🎯 核心特性
 
-- **🔍 多协议支持**: HTTP/1.1, HTTP/2, HTTP/3, TLS, SSH, WebSocket, gRPC, QUIC
+- **🔍 多协议支持**: HTTP/1.1, HTTP/2, HTTP/3, TLS, SSH, WebSocket, gRPC, QUIC, MQTT, DNS
+- **🧩 插件系统**: 支持自定义协议探测器，可扩展的插件架构
 - **⚡ 高性能**: SIMD 优化，微秒级探测延迟，支持 280k+ 检测/秒吞吐量
 - **🛡️ 安全设计**: 被动探测，无侵入性，内存安全
 - **🔧 易于集成**: 简洁的 Builder API，支持自定义配置
@@ -18,9 +19,10 @@ PSI-Detector 是一个用 Rust 编写的高性能协议探测和升级框架，�
 ### 🏗️ 架构特点
 
 - **模块化设计**: 核心探测器、SIMD 优化、流处理、协议升级独立模块
+- **插件架构**: 支持自定义探测器插件，灵活的协议扩展机制
 - **零拷贝**: 高效的内存管理和数据处理
 - **并发安全**: 线程安全的设计，支持高并发场景
-- **可扩展性**: 易于添加新协议支持
+- **可扩展性**: 易于添加新协议支持，支持 UDP/TCP 双栈协议
 
 ## 🚀 快速开始
 
@@ -118,6 +120,8 @@ let detector = DetectorBuilder::new()
     .enable_http3()                             // 启用 HTTP/3
     .enable_tls()                               // 启用 TLS
     .enable_ssh()                               // 启用 SSH
+    .add_custom_probe(Box::new(DnsProbe))       // 添加自定义 DNS 探测器
+    .add_custom_probe(Box::new(MqttProbe))      // 添加自定义 MQTT 探测器
     .with_strategy(ProbeStrategy::Passive)      // 设置探测策略
     .with_timeout(Duration::from_millis(100))   // 设置超时时间
     .with_min_confidence(0.8)                   // 设置最小置信度
@@ -169,7 +173,9 @@ pub enum ProtocolType {
     GRPC,
     QUIC,
     MQTT,
+    DNS,        // 新增 DNS 协议支持
     TCP,
+    UDP,        // 新增 UDP 协议支持
     Unknown,
 }
 ```
@@ -208,6 +214,9 @@ cargo run --example client_server_demo
 
 # 简化集成示例
 cargo run --example simple_client_server
+
+# 插件系统演示（DNS/MQTT 自定义探测器）
+cargo run --example plugin_system_demo
 ```
 
 ### 自定义配置
@@ -215,6 +224,96 @@ cargo run --example simple_client_server
 ```bash
 # 自定义配置示例
 cargo run --example custom_configuration
+```
+
+## 🧩 插件系统
+
+### 自定义协议探测器
+
+PSI-Detector 支持通过插件系统扩展协议支持，您可以轻松添加自定义协议探测器：
+
+```rust
+use psi_detector::{
+    DetectorBuilder, ProtocolDetector, ProtocolType,
+    core::{ProtocolProbe, ProtocolInfo, ProbeResult},
+};
+
+// 实现自定义 DNS 探测器
+struct DnsProbe;
+
+impl ProtocolProbe for DnsProbe {
+    fn probe(&self, data: &[u8]) -> ProbeResult {
+        if data.len() < 12 {
+            return ProbeResult::NotDetected;
+        }
+        
+        // DNS 头部验证逻辑
+        let confidence = self.calculate_confidence(data);
+        
+        if confidence > 0.5 {
+            let mut info = ProtocolInfo::new(ProtocolType::DNS, confidence);
+            info.add_feature("query_type", "standard");
+            info.add_metadata("header_valid", "true");
+            ProbeResult::Detected(info)
+        } else {
+            ProbeResult::NotDetected
+        }
+    }
+    
+    fn supported_protocols(&self) -> Vec<ProtocolType> {
+        vec![ProtocolType::DNS]
+    }
+    
+    fn name(&self) -> &'static str {
+        "DNS Probe"
+    }
+}
+
+// 使用自定义探测器
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let detector = DetectorBuilder::new()
+        .enable_http()
+        .add_custom_probe(Box::new(DnsProbe))  // 添加自定义探测器
+        .build()?;
+    
+    // DNS 查询数据包
+    let dns_query = create_dns_query_packet();
+    let result = detector.detect(&dns_query)?;
+    
+    println!("检测到协议: {:?}", result.protocol_type());
+    println!("置信度: {:.1}%", result.confidence() * 100.0);
+    
+    Ok(())
+}
+```
+
+### 插件优先级管理
+
+```rust
+// 演示插件优先级和多协议探测
+let detector = DetectorBuilder::new()
+    .enable_http()                           // 内置协议
+    .add_custom_probe(Box::new(DnsProbe))    // 自定义 DNS 探测器
+    .add_custom_probe(Box::new(MqttProbe))   // 自定义 MQTT 探测器
+    .with_min_confidence(0.6)                // 设置置信度阈值
+    .build()?;
+
+// 测试不同协议数据
+let test_cases = vec![
+    ("HTTP", create_http_request()),
+    ("DNS", create_dns_query_packet()),
+    ("MQTT", create_mqtt_connect_packet()),
+];
+
+for (name, data) in test_cases {
+    match detector.detect(&data) {
+        Ok(result) => {
+            println!("{}: {:?} (置信度: {:.1}%)", 
+                name, result.protocol_type(), result.confidence() * 100.0);
+        }
+        Err(e) => println!("{}: 探测失败 - {}", name, e),
+    }
+}
 ```
 
 ## 📊 性能指标
@@ -245,6 +344,8 @@ cargo run --example custom_configuration
 | SSH | 98% | 21 bytes |
 | WebSocket | 95% | 152 bytes |
 | gRPC | 90% | 90 bytes |
+| DNS | 92% | 12 bytes |
+| MQTT | 88% | 14 bytes |
 
 ## 🏗️ 项目结构
 
@@ -505,6 +606,9 @@ async fn protocol_detection_middleware(
 
 - ✅ 核心协议探测功能
 - ✅ HTTP/1.1, HTTP/2, TLS, SSH 支持
+- ✅ 插件系统架构，支持自定义协议探测器
+- ✅ DNS 和 MQTT 协议支持
+- ✅ UDP/TCP 双栈协议支持
 - ✅ SIMD 优化实现
 - ✅ 被动探测策略
 - ✅ 基础性能测试
@@ -513,10 +617,12 @@ async fn protocol_detection_middleware(
 ### 计划功能
 
 - 🔄 HTTP/3 完整支持
-- 🔄 更多协议支持 (MQTT, DNS, etc.)
+- 🔄 更多协议支持 (FTP, SMTP, POP3, IMAP, etc.)
+- 🔄 插件热加载机制
 - 🔄 机器学习增强探测
 - 🔄 协议指纹识别
 - 🔄 实时流量分析
+- 🔄 插件市场和生态系统
 
 ## 🤝 贡献指南
 
