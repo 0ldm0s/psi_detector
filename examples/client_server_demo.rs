@@ -318,17 +318,32 @@ impl ProtocolClient {
         Ok(())
     }
 
-    /// 发送 gRPC 请求
+    /// 发送 gRPC 请求 (模拟 HTTP/2 + gRPC 特征)
     fn send_grpc_request(port: u16) -> Result<(), Box<dyn std::error::Error>> {
         let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port))?;
-        // gRPC over HTTP/2 with content-type
-        let grpc_request = concat!(
-            "POST /grpc.service/Method HTTP/2.0\r\n",
-            "Content-Type: application/grpc+proto\r\n",
-            "TE: trailers\r\n",
-            "\r\n"
-        );
-        stream.write_all(grpc_request.as_bytes())?;
+        
+        // 发送 HTTP/2 连接前言
+        let http2_preface = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        stream.write_all(http2_preface)?;
+        
+        // 发送包含 gRPC 内容类型的 HTTP/2 HEADERS 帧 (简化版)
+        let grpc_headers_frame = [
+            // HTTP/2 帧头 (9 bytes): Length(3) + Type(1) + Flags(1) + Stream ID(4)
+            0x00, 0x00, 0x2A, // Length: 42 bytes
+            0x01,             // Type: HEADERS
+            0x04,             // Flags: END_HEADERS
+            0x00, 0x00, 0x00, 0x01, // Stream ID: 1
+            
+            // HPACK 编码的头部 (简化)
+            0x00, 0x07, b':',b'm',b'e',b't',b'h',b'o',b'd', // :method
+            0x04, b'P',b'O',b'S',b'T',                      // POST
+            0x00, 0x05, b':',b'p',b'a',b't',b'h',           // :path  
+            0x01, b'/',                                      // /
+            0x00, 0x0C, b'c',b'o',b'n',b't',b'e',b'n',b't',b'-',b't',b'y',b'p',b'e', // content-type
+            0x10, b'a',b'p',b'p',b'l',b'i',b'c',b'a',b't',b'i',b'o',b'n',b'/',b'g',b'r',b'p',b'c', // application/grpc
+        ];
+        
+        stream.write_all(&grpc_headers_frame)?;
         thread::sleep(Duration::from_millis(100));
         Ok(())
     }

@@ -134,11 +134,58 @@ fn demonstrate_performance_tuning() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     
     // 测试数据
+    let tls_data = create_tls_client_hello();
     let test_scenarios = vec![
         ("HTTP", b"GET /test HTTP/1.1\r\nHost: example.com\r\n\r\n".as_slice()),
-        ("TLS", &[0x16, 0x03, 0x01, 0x00, 0x2f, 0x01, 0x00, 0x00, 0x2b, 0x03, 0x03]),
+        ("TLS", tls_data.as_slice()),
         ("SSH", b"SSH-2.0-OpenSSH_8.0\r\n"),
     ];
+    
+    /// 创建完整的 TLS ClientHello 数据包
+    /// 
+    /// 这是一个标准的 TLS 1.2 ClientHello 握手包，包含：
+    /// - TLS Record Header (5 bytes)
+    /// - Handshake Header (4 bytes) 
+    /// - Client Hello 内容 (版本、随机数、密码套件等)
+    fn create_tls_client_hello() -> Vec<u8> {
+        vec![
+            // TLS Record Header (5 bytes)
+            0x16,       // Content Type: Handshake (22)
+            0x03, 0x03, // Version: TLS 1.2
+            0x00, 0x40, // Length: 64 bytes
+            
+            // Handshake Header (4 bytes)
+            0x01,       // Handshake Type: Client Hello (1)
+            0x00, 0x00, 0x3C, // Length: 60 bytes
+            
+            // Client Hello Payload
+            0x03, 0x03, // Protocol Version: TLS 1.2
+            
+            // Random (32 bytes) - 客户端随机数
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+            0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+            0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
+            
+            // Session ID Length (1 byte)
+            0x00,       // 无会话 ID
+            
+            // Cipher Suites Length (2 bytes)
+            0x00, 0x02, // 2 字节长度
+            
+            // Cipher Suites (2 bytes)
+            0x00, 0x35, // TLS_RSA_WITH_AES_256_CBC_SHA
+            
+            // Compression Methods Length (1 byte)
+            0x01,       // 1 个压缩方法
+            
+            // Compression Methods (1 byte)
+            0x00,       // 无压缩
+            
+            // Extensions Length (2 bytes)
+            0x00, 0x00, // 无扩展
+        ]
+    }
     
     let configurations = vec![
         (&high_performance, "高性能"),

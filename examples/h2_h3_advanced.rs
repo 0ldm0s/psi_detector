@@ -71,6 +71,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     
     println!("\n🧪 开始高级协议探测测试...");
+    println!("   📝 优化说明:");
+    println!("      - HTTP/3 检测优先级高于 QUIC");
+    println!("      - 改进了 QPACK 参数识别");
+    println!("      - 优化了 WebSocket 误判问题");
+    println!("      - 增强了帧类型检测范围");
     
     for scenario in &advanced_scenarios {
         println!("\n📋 测试场景: {}", scenario.name);
@@ -181,36 +186,69 @@ fn create_http2_headers_frame() -> Vec<u8> {
 /// 创建HTTP/3 over QUIC数据包
 fn create_http3_quic_packet() -> Vec<u8> {
     vec![
-        // QUIC长包头
-        0x80,                   // 标志: 长包头
+        // QUIC长包头 (Initial packet)
+        0xc0,                   // 标志: 长包头 + Initial packet type
         0x00, 0x00, 0x00, 0x01, // 版本: QUIC v1
         0x08,                   // 目标连接ID长度
         0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, // 目标连接ID
         0x00,                   // 源连接ID长度
-        0x40, 0x74,             // 令牌长度: 116
-        // ALPN扩展 (简化)
-        0x00, 0x10,             // 扩展类型: ALPN
-        0x00, 0x05,             // 扩展长度
+        0x00,                   // 令牌长度: 0
+        0x40, 0x2a,             // 包长度: 42字节
+        0x00, 0x00, 0x00, 0x00, // 包号: 0
+        
+        // CRYPTO帧 (包含TLS握手和ALPN)
+        0x06,                   // 帧类型: CRYPTO
+        0x00,                   // 偏移量: 0
+        0x1a,                   // 长度: 26字节
+        
+        // 简化的TLS ClientHello片段 (包含h3 ALPN)
+        0x01, 0x00, 0x00, 0x16, // Handshake: ClientHello, 长度22
+        0x03, 0x04,             // TLS 1.3
+        0x00, 0x10,             // 扩展长度
+        0x00, 0x10,             // ALPN扩展类型
+        0x00, 0x05,             // ALPN扩展长度
         0x00, 0x03,             // ALPN列表长度
         0x02, 0x68, 0x33,       // "h3"
-        // 更多QUIC数据
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+        
+        // 填充数据
+        0x00, 0x00, 0x00, 0x00,
     ]
 }
 
 /// 创建HTTP/3 SETTINGS帧
 fn create_http3_settings_frame() -> Vec<u8> {
-    let mut data = create_http3_quic_packet();
-    // 添加HTTP/3 SETTINGS帧
-    data.extend_from_slice(&[
-        0x04,       // 帧类型: SETTINGS
-        0x08,       // 长度: 8字节
-        // SETTINGS参数
+    vec![
+        // QUIC长包头 (Initial packet) - 与 create_http3_quic_packet 保持一致
+        0xc0,                   // 标志: 长包头 + Initial packet type
+        0x00, 0x00, 0x00, 0x01, // 版本: QUIC v1
+        0x08,                   // 目标连接ID长度
+        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, // 目标连接ID
+        0x00,                   // 源连接ID长度
+        0x00,                   // 令牌长度: 0
+        0x40, 0x30,             // 包长度: 48字节
+        0x00, 0x00, 0x00, 0x01, // 包号: 1
+        
+        // CRYPTO帧 (包含TLS握手和ALPN)
+        0x06,                   // 帧类型: CRYPTO
+        0x00,                   // 偏移量: 0
+        0x20,                   // 长度: 32字节
+        
+        // 简化的TLS ClientHello片段 (包含h3 ALPN)
+        0x01, 0x00, 0x00, 0x1c, // Handshake: ClientHello, 长度28
+        0x03, 0x04,             // TLS 1.3
+        0x00, 0x16,             // 扩展长度: 22字节
+        0x00, 0x10,             // ALPN扩展类型
+        0x00, 0x05,             // ALPN扩展长度
+        0x00, 0x03,             // ALPN列表长度
+        0x02, 0x68, 0x33,       // "h3"
+        
+        // HTTP/3 SETTINGS帧数据 (嵌入在 CRYPTO 帧中)
+        0x04,                   // 帧类型: SETTINGS
+        0x09,                   // 长度: 9字节
         0x01, 0x40, 0x00, 0x64, // QPACK_MAX_TABLE_CAPACITY: 100
         0x06, 0x40, 0x00, 0x64, // QPACK_BLOCKED_STREAMS: 100
-    ]);
-    data
+        0x00,                   // 结束标记
+    ]
 }
 
 /// 创建包含HTTP/2 ALPN的TLS握手

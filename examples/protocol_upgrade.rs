@@ -1,6 +1,11 @@
 //! 协议升级示例
 //!
 //! 演示如何使用 PSI-Detector 进行协议探测和识别升级请求
+//!
+//! ## 优化说明
+//! 1. **HTTP/3 over QUIC 检测优化**: 使用完整的 QUIC Initial 包格式，包含 CRYPTO 帧和 "h3" ALPN
+//! 2. **WebSocket 升级请求优化**: 降低 WebSocket 检测器对升级请求的置信度，优先识别为 HTTP1_1
+//! 3. **协议检测优先级**: HTTP/3 > QUIC > HTTP2 > HTTP1_1 > TLS > SSH > WebSocket
 
 use psi_detector::{
     DetectorBuilder, ProtocolDetector, ProtocolType,
@@ -37,18 +42,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         TestScenario {
             name: "HTTP/3 over QUIC 连接",
             data: vec![
-                // QUIC长包头 + HTTP/3标识
-                0x80, 0x00, 0x00, 0x01, // QUIC版本1
-                0x08, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, // 连接ID
-                0x68, 0x33, // "h3" ALPN开始
-                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+                // QUIC长包头 (Initial packet)
+                0xc0, 0x00, 0x00, 0x00, 0x01, // 包头 + 版本1
+                0x08, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, // 目标连接ID
+                0x00, // 源连接ID长度
+                0x44, 0x01, // Token长度
+                0x00, // Token
+                0x00, 0x40, // 包长度
+                0x41, 0x00, 0x00, 0x00, // 包号
+                // CRYPTO帧 (包含TLS ClientHello with h3 ALPN)
+                0x06, 0x00, 0x3c, // CRYPTO帧类型和长度
+                0x01, 0x00, 0x00, 0x38, 0x03, 0x03, // ClientHello开始
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // Random
+                0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+                0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+                0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+                0x00, // Session ID长度
+                0x00, 0x02, 0x13, 0x01, // Cipher suites
+                0x01, 0x00, // Compression methods
+                0x00, 0x0c, // Extensions长度
+                0x00, 0x10, 0x00, 0x05, 0x00, 0x03, 0x02, // ALPN扩展
+                0x68, 0x33, // "h3" ALPN
             ],
             expected_protocol: ProtocolType::HTTP3,
         },
         TestScenario {
             name: "WebSocket 升级请求",
-            data: b"GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n".to_vec(),
+            data: b"GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n".to_vec(),
             expected_protocol: ProtocolType::HTTP1_1,
         },
         TestScenario {

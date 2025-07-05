@@ -108,31 +108,47 @@ impl PassiveProbe {
         None
     }
     
-    /// 检测HTTP/3协议
+    /// 检测HTTP/3协议 (优化版)
     fn detect_http3(&self, data: &[u8]) -> Option<f32> {
         // HTTP/3基于QUIC，先检查QUIC
         if let Some(quic_confidence) = self.detect_quic(data) {
             if quic_confidence > 0.7 {
-                // 检查HTTP/3特有的ALPN或帧类型
-                // HTTP/3使用特定的ALPN标识符 "h3" 或 "h3-XX"
-                let data_str = String::from_utf8_lossy(data);
-                if data_str.contains("h3") || data_str.contains("h3-") {
-                    return Some(0.9);
+                let mut http3_confidence = 0.0;
+                
+                // 快速检查HTTP/3特有的ALPN标识符
+                if self.fast_search(data, b"h3") || self.fast_search(data, b"h3-") {
+                    http3_confidence += 0.5;
                 }
                 
-                // 检查HTTP/3帧类型（简化检测）
+                // 检查HTTP/3帧类型（扩展检测范围）
                 if data.len() >= 20 {
-                    // 查找可能的HTTP/3帧类型标识
-                    for i in 0..data.len().saturating_sub(4) {
-                        let frame_type = data[i];
-                        // HTTP/3帧类型：DATA(0x0), HEADERS(0x1), SETTINGS(0x4)
-                        if matches!(frame_type, 0x0 | 0x1 | 0x4) {
-                            return Some(quic_confidence * 0.85);
+                    // 扩展检查位置，包括更多可能的帧位置
+                    let check_positions = [16, 20, 24, 28, 32, 36, 40, 44, 48, 52];
+                    for &pos in &check_positions {
+                        if pos < data.len() {
+                            let frame_type = data[pos];
+                            // HTTP/3帧类型：DATA(0x0), HEADERS(0x1), SETTINGS(0x4), PUSH_PROMISE(0x5)
+                            // GOAWAY(0x7), MAX_PUSH_ID(0xd), DUPLICATE_PUSH(0xe)
+                            if matches!(frame_type, 0x0 | 0x1 | 0x4 | 0x5 | 0x7 | 0xd | 0xe) {
+                                http3_confidence += 0.4;
+                                break;
+                            }
                         }
                     }
                 }
                 
-                // 如果是QUIC但没有明确的HTTP/3标识，给较低置信度
+                // 检查QPACK相关的设置参数（HTTP/3特有）
+                if self.fast_search(data, &[0x01, 0x40]) || // QPACK_MAX_TABLE_CAPACITY
+                   self.fast_search(data, &[0x06, 0x40]) {   // QPACK_BLOCKED_STREAMS
+                    http3_confidence += 0.3;
+                }
+                
+                // 如果有明确的HTTP/3特征，返回高置信度
+                if http3_confidence >= 0.4 {
+                    return Some((quic_confidence + http3_confidence).min(0.95));
+                }
+                
+                // 如果是QUIC但没有明确的HTTP/3标识，仍然可能是HTTP/3
                 return Some(quic_confidence * 0.6);
             }
         }
@@ -140,37 +156,134 @@ impl PassiveProbe {
         None
     }
     
-    /// 检测gRPC协议
+    /// 检测gRPC协议 (优化版)
     fn detect_grpc(&self, data: &[u8]) -> Option<f32> {
-        // gRPC基于HTTP/2，先检查HTTP/2
-        if let Some(h2_confidence) = self.detect_http2(data) {
-            if h2_confidence > 0.7 {
-                // 检查gRPC特有的头部
-                // 这里简化处理，实际需要解析HTTP/2帧
-                return Some(h2_confidence * 0.8);
+        if data.len() < 16 {
+            return None;
+        }
+        
+        let mut confidence: f32 = 0.0;
+        
+        // 快速检查 HTTP/2 连接前言 (只检查开头)
+        const HTTP2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        if data.len() >= 24 && data.starts_with(HTTP2_PREFACE) {
+            confidence += 0.4;
+        }
+        
+        // 使用 memmem 风格的快速搜索 application/grpc
+        if self.fast_search(data, b"application/grpc") {
+            confidence += 0.5;
+        }
+        
+        // 优化的 HTTP/2 帧检测 - 只检查前几个可能的位置
+        if data.len() >= 9 {
+            let check_positions = [
+                0,  // 开头
+                24, // HTTP/2 前言之后
+                33, // 可能的第二帧位置
+            ];
+            
+            for &pos in &check_positions {
+                if pos + 9 <= data.len() {
+                    let frame_type = data[pos + 3];
+                    // 检查常见的 HTTP/2 帧类型
+                    if matches!(frame_type, 0x00..=0x08) {
+                        confidence += 0.3;
+                        break;
+                    }
+                }
             }
         }
         
-        None
+        // 如果同时具备多个特征，给予高置信度
+        if confidence >= 0.8 {
+            confidence = confidence.max(0.9);
+        }
+        
+        if confidence > 0.5 {
+            Some(confidence)
+        } else {
+            None
+        }
     }
     
-    /// 检测WebSocket协议
+    /// 快速字节序列搜索 (Boyer-Moore 简化版)
+    #[inline]
+    fn fast_search(&self, haystack: &[u8], needle: &[u8]) -> bool {
+        if needle.is_empty() || haystack.len() < needle.len() {
+            return false;
+        }
+        
+        // 对于短模式，直接使用简单搜索
+        if needle.len() <= 4 {
+            return haystack.windows(needle.len()).any(|window| window == needle);
+        }
+        
+        // 使用最后一个字节作为快速跳过的依据
+        let last_byte = needle[needle.len() - 1];
+        let mut i = needle.len() - 1;
+        
+        while i < haystack.len() {
+            if haystack[i] == last_byte {
+                // 检查完整匹配
+                let start = i + 1 - needle.len();
+                if haystack[start..=i] == *needle {
+                    return true;
+                }
+            }
+            i += 1;
+        }
+        
+        false
+    }
+    
+    /// 检测WebSocket协议 (优化版)
     fn detect_websocket(&self, data: &[u8]) -> Option<f32> {
         if data.len() < 20 {
             return None;
         }
         
-        let data_str = String::from_utf8_lossy(data);
+        // 首先检查是否明确是 HTTP 请求/响应
+        let is_http_like = self.fast_search(data, b"HTTP/") || 
+                          self.fast_search(data, b"GET ") ||
+                          self.fast_search(data, b"POST ");
         
-        // WebSocket握手请求
-        if data_str.contains("Upgrade: websocket") {
-            return Some(0.95);
+        if is_http_like {
+            // 快速检查 WebSocket 升级头部
+            let has_upgrade_websocket = self.fast_search(data, b"Upgrade: websocket") ||
+                                       self.fast_search(data, b"upgrade: websocket");
+            
+            if has_upgrade_websocket {
+                // 检查是否是握手响应
+                if self.fast_search(data, b"HTTP/1.1 101") {
+                    return Some(0.98);
+                }
+                // 普通握手请求应该优先识别为 HTTP1_1，降低 WebSocket 置信度
+                return Some(0.75);
+            }
+            
+            // 如果是 HTTP 但没有 WebSocket 升级，不是 WebSocket
+            return None;
         }
         
-        // WebSocket握手响应
-        if data_str.contains("HTTP/1.1 101 Switching Protocols") &&
-           data_str.contains("Upgrade: websocket") {
-            return Some(0.98);
+        // 检查 WebSocket 帧格式 (数据帧) - 更严格的检查
+        if data.len() >= 2 {
+            let first_byte = data[0];
+            let second_byte = data[1];
+            
+            // WebSocket 帧的 FIN 位和操作码检查
+            let opcode = first_byte & 0x0F;
+            let masked = (second_byte & 0x80) != 0;
+            let payload_len = second_byte & 0x7F;
+            
+            // 检查有效的操作码和合理的载荷长度
+            if matches!(opcode, 0x0..=0x2 | 0x8..=0xA) && payload_len <= 125 {
+                // 进一步验证帧结构
+                let expected_header_len = if masked { 6 } else { 2 };
+                if data.len() >= expected_header_len {
+                    return Some(0.6); // 降低置信度，避免误判
+                }
+            }
         }
         
         None
@@ -211,13 +324,13 @@ impl PassiveProbe {
         }
     }
     
-    /// 检测SSH协议
+    /// 检测SSH协议 (优化版)
     fn detect_ssh(&self, data: &[u8]) -> Option<f32> {
-        if data.len() < 8 {
+        if data.len() < 4 {
             return None;
         }
         
-        // SSH协议标识字符串
+        // SSH协议标识字符串 - 直接字节比较
         if data.starts_with(b"SSH-2.0") {
             return Some(0.98);
         }
@@ -226,10 +339,27 @@ impl PassiveProbe {
             return Some(0.95);
         }
         
-        // 检查是否包含SSH标识
-        let data_str = String::from_utf8_lossy(data);
-        if data_str.starts_with("SSH-") {
+        // 检查通用 SSH 标识
+        if data.starts_with(b"SSH-") {
             return Some(0.9);
+        }
+        
+        // 检查可能的 SSH 二进制协议包
+        if data.len() >= 6 {
+            // SSH 二进制包通常以包长度开始
+            let packet_length = u32::from_be_bytes([
+                data[0], data[1], data[2], data[3]
+            ]);
+            
+            // 合理的包长度范围 (避免误判)
+            if packet_length > 0 && packet_length < 65536 && 
+               packet_length as usize <= data.len() - 4 {
+                // 检查填充长度字节
+                let padding_length = data[4];
+                if padding_length < 255 {
+                    return Some(0.6);
+                }
+            }
         }
         
         None
@@ -245,16 +375,16 @@ impl ProbeEngine for PassiveProbe {
         let mut best_protocol = ProtocolType::Unknown;
         let mut best_confidence = 0.0;
         
-        // 尝试各种协议检测
+        // 尝试各种协议检测 (按优先级排序)
         let detections = [
-            (ProtocolType::HTTP1_1, self.detect_http1(data)),
-            (ProtocolType::HTTP2, self.detect_http2(data)),
-            (ProtocolType::HTTP3, self.detect_http3(data)),
+            (ProtocolType::HTTP3, self.detect_http3(data)),  // HTTP/3 优先于 QUIC
             (ProtocolType::QUIC, self.detect_quic(data)),
+            (ProtocolType::HTTP2, self.detect_http2(data)),
             (ProtocolType::GRPC, self.detect_grpc(data)),
-            (ProtocolType::WebSocket, self.detect_websocket(data)),
+            (ProtocolType::HTTP1_1, self.detect_http1(data)),
             (ProtocolType::TLS, self.detect_tls(data)),
             (ProtocolType::SSH, self.detect_ssh(data)),
+            (ProtocolType::WebSocket, self.detect_websocket(data)), // WebSocket 最后检测
         ];
         
         for (protocol, confidence_opt) in detections {
@@ -325,15 +455,16 @@ impl ProtocolProbe for PassiveProbe {
         let mut best_protocol = ProtocolType::Unknown;
         let mut best_confidence = 0.0;
         
-        // 尝试各种协议检测
+        // 尝试各种协议检测 (按优先级排序)
         let detections = [
-            (ProtocolType::HTTP1_1, self.detect_http1(data)),
-            (ProtocolType::HTTP2, self.detect_http2(data)),
+            (ProtocolType::HTTP3, self.detect_http3(data)),  // HTTP/3 优先于 QUIC
             (ProtocolType::QUIC, self.detect_quic(data)),
+            (ProtocolType::HTTP2, self.detect_http2(data)),
             (ProtocolType::GRPC, self.detect_grpc(data)),
-            (ProtocolType::WebSocket, self.detect_websocket(data)),
+            (ProtocolType::HTTP1_1, self.detect_http1(data)),
             (ProtocolType::TLS, self.detect_tls(data)),
             (ProtocolType::SSH, self.detect_ssh(data)),
+            (ProtocolType::WebSocket, self.detect_websocket(data)), // WebSocket 最后检测
         ];
         
         for (protocol, confidence_opt) in detections {

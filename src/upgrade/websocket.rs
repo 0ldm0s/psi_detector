@@ -1,16 +1,51 @@
 //! WebSocket协议升级器
 //!
-//! 处理HTTP到WebSocket的升级过程。
+//! 处理HTTP到WebSocket的升级过程，支持多种HTTP版本和灵活配置。
 
 use crate::core::protocol::{ProtocolType, UpgradePath, UpgradeMethod};
 use crate::error::{DetectorError, Result};
 use crate::upgrade::{ProtocolUpgrader, UpgradeResult};
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
+
+/// WebSocket升级配置
+#[derive(Debug, Clone)]
+pub struct WebSocketConfig {
+    /// 默认主机名
+    pub default_host: String,
+    /// 默认路径
+    pub default_path: String,
+    /// 支持的WebSocket版本
+    pub supported_versions: Vec<String>,
+    /// 支持的子协议
+    pub supported_protocols: Vec<String>,
+    /// 支持的扩展
+    pub supported_extensions: Vec<String>,
+    /// 是否启用随机密钥生成
+    pub use_random_key: bool,
+    /// 自定义头部
+    pub custom_headers: HashMap<String, String>,
+}
+
+impl Default for WebSocketConfig {
+    fn default() -> Self {
+        Self {
+            default_host: "localhost".to_string(),
+            default_path: "/".to_string(),
+            supported_versions: vec!["13".to_string()],
+            supported_protocols: vec![],
+            supported_extensions: vec![],
+            use_random_key: true,
+            custom_headers: HashMap::new(),
+        }
+    }
+}
 
 /// WebSocket升级器
 #[derive(Debug)]
 pub struct WebSocketUpgrader {
     name: &'static str,
+    config: WebSocketConfig,
 }
 
 impl WebSocketUpgrader {
@@ -18,13 +53,45 @@ impl WebSocketUpgrader {
     pub fn new() -> Self {
         Self {
             name: "WebSocketUpgrader",
+            config: WebSocketConfig::default(),
         }
+    }
+    
+    /// 使用自定义配置创建WebSocket升级器
+    pub fn with_config(config: WebSocketConfig) -> Self {
+        Self {
+            name: "WebSocketUpgrader",
+            config,
+        }
+    }
+    
+    /// 获取配置的可变引用
+    pub fn config_mut(&mut self) -> &mut WebSocketConfig {
+        &mut self.config
+    }
+    
+    /// 获取配置的引用
+    pub fn config(&self) -> &WebSocketConfig {
+        &self.config
     }
     
     /// 生成WebSocket密钥
     fn generate_websocket_key(&self) -> String {
-        // 简化的WebSocket密钥生成（实际应用中应使用随机生成）
-        "dGhlIHNhbXBsZSBub25jZQ==".to_string()
+        if self.config.use_random_key {
+            // 生成16字节随机数据并进行Base64编码
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            
+            let mut hasher = DefaultHasher::new();
+            std::time::SystemTime::now().hash(&mut hasher);
+            let random_data = hasher.finish();
+            
+            // 简化的Base64编码（实际应用中应使用proper Base64库）
+            format!("{}==", random_data)
+        } else {
+            // 使用固定密钥用于测试
+            "dGhlIHNhbXBsZSBub25jZQ==".to_string()
+        }
     }
     
     /// 计算WebSocket接受密钥
@@ -47,19 +114,45 @@ impl WebSocketUpgrader {
     }
     
     /// 创建WebSocket升级请求
-    fn create_websocket_upgrade_request(&self, host: &str, path: &str) -> Vec<u8> {
+    fn create_websocket_upgrade_request(&self, host: Option<&str>, path: Option<&str>, http_version: &str) -> Vec<u8> {
         let key = self.generate_websocket_key();
+        let host = host.unwrap_or(&self.config.default_host);
+        let path = path.unwrap_or(&self.config.default_path);
+        let default_version = "13".to_string();
+        let version = self.config.supported_versions.first().unwrap_or(&default_version);
         
-        let request = format!(
-            "GET {} HTTP/1.1\r\n\
+        let mut request = format!(
+            "GET {} {}\r\n\
              Host: {}\r\n\
              Upgrade: websocket\r\n\
              Connection: Upgrade\r\n\
              Sec-WebSocket-Key: {}\r\n\
-             Sec-WebSocket-Version: 13\r\n\
-             \r\n",
-            path, host, key
+             Sec-WebSocket-Version: {}\r\n",
+            path, http_version, host, key, version
         );
+        
+        // 添加子协议支持
+        if !self.config.supported_protocols.is_empty() {
+            request.push_str(&format!(
+                "Sec-WebSocket-Protocol: {}\r\n",
+                self.config.supported_protocols.join(", ")
+            ));
+        }
+        
+        // 添加扩展支持
+        if !self.config.supported_extensions.is_empty() {
+            request.push_str(&format!(
+                "Sec-WebSocket-Extensions: {}\r\n",
+                self.config.supported_extensions.join(", ")
+            ));
+        }
+        
+        // 添加自定义头部
+        for (key, value) in &self.config.custom_headers {
+            request.push_str(&format!("{}:{}\r\n", key, value));
+        }
+        
+        request.push_str("\r\n");
         
         request.into_bytes()
     }
@@ -254,11 +347,66 @@ impl Default for WebSocketUpgrader {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_websocket_config_default() {
+        let config = WebSocketConfig::default();
+        assert_eq!(config.default_host, "localhost");
+        assert_eq!(config.default_path, "/");
+        assert_eq!(config.supported_versions, vec!["13"]);
+        assert!(config.use_random_key);
+    }
+    
+    #[test]
+    fn test_websocket_upgrader_supports_all_http_versions() {
+        let upgrader = WebSocketUpgrader::new();
+        
+        assert!(upgrader.can_upgrade(ProtocolType::HTTP1_0, ProtocolType::WebSocket));
+        assert!(upgrader.can_upgrade(ProtocolType::HTTP1_1, ProtocolType::WebSocket));
+        assert!(upgrader.can_upgrade(ProtocolType::HTTP2, ProtocolType::WebSocket));
+        assert!(upgrader.can_upgrade(ProtocolType::HTTP3, ProtocolType::WebSocket));
+        assert!(!upgrader.can_upgrade(ProtocolType::TCP, ProtocolType::WebSocket));
+    }
+    
+    #[test]
+    fn test_websocket_upgrader_with_custom_config() {
+        let mut config = WebSocketConfig::default();
+        config.default_host = "example.com".to_string();
+        config.supported_protocols = vec!["chat".to_string(), "echo".to_string()];
+        config.use_random_key = false;
+        
+        let upgrader = WebSocketUpgrader::with_config(config);
+        assert_eq!(upgrader.config().default_host, "example.com");
+        assert_eq!(upgrader.config().supported_protocols, vec!["chat", "echo"]);
+        assert!(!upgrader.config().use_random_key);
+    }
+    
+    #[test]
+    fn test_supported_upgrades_includes_all_http_versions() {
+        let upgrader = WebSocketUpgrader::new();
+        let upgrades = upgrader.supported_upgrades();
+        
+        assert_eq!(upgrades.len(), 4);
+        
+        let from_protocols: Vec<_> = upgrades.iter().map(|u| u.from).collect();
+        assert!(from_protocols.contains(&ProtocolType::HTTP1_0));
+        assert!(from_protocols.contains(&ProtocolType::HTTP1_1));
+        assert!(from_protocols.contains(&ProtocolType::HTTP2));
+        assert!(from_protocols.contains(&ProtocolType::HTTP3));
+    }
+}
+
 impl ProtocolUpgrader for WebSocketUpgrader {
     fn can_upgrade(&self, from: ProtocolType, to: ProtocolType) -> bool {
         match (from, to) {
-            (ProtocolType::HTTP1_1, ProtocolType::WebSocket) => true,
+            // 支持所有HTTP版本到WebSocket的升级
             (ProtocolType::HTTP1_0, ProtocolType::WebSocket) => true,
+            (ProtocolType::HTTP1_1, ProtocolType::WebSocket) => true,
+            (ProtocolType::HTTP2, ProtocolType::WebSocket) => true,
+            (ProtocolType::HTTP3, ProtocolType::WebSocket) => true,
             _ => false,
         }
     }
@@ -302,23 +450,32 @@ impl ProtocolUpgrader for WebSocketUpgrader {
             
             // 从HTTP请求中提取Host和路径
             let data_str = String::from_utf8_lossy(data);
-            let mut host = "localhost";
-            let mut path = "/";
+            let mut host: Option<&str> = None;
+            let mut path: Option<&str> = None;
             
             for line in data_str.lines() {
                 if line.to_lowercase().starts_with("host:") {
                     if let Some(h) = line.split(':').nth(1) {
-                        host = h.trim();
+                        host = Some(h.trim());
                     }
                 }
                 if line.starts_with("GET ") {
                     if let Some(p) = line.split_whitespace().nth(1) {
-                        path = p;
+                        path = Some(p);
                     }
                 }
             }
             
-            self.create_websocket_upgrade_request(host, path)
+            // 根据源协议类型确定HTTP版本
+            let http_version = match from {
+                ProtocolType::HTTP1_0 => "HTTP/1.0",
+                ProtocolType::HTTP1_1 => "HTTP/1.1",
+                ProtocolType::HTTP2 => "HTTP/2",
+                ProtocolType::HTTP3 => "HTTP/3",
+                _ => "HTTP/1.1", // 默认值
+            };
+            
+            self.create_websocket_upgrade_request(host, path, http_version)
         };
         
         let duration = start.elapsed();
@@ -344,36 +501,52 @@ impl ProtocolUpgrader for WebSocketUpgrader {
     }
     
     fn supported_upgrades(&self) -> Vec<UpgradePath> {
+        let mut required_headers = vec![
+            "Upgrade".to_string(),
+            "Connection".to_string(),
+            "Sec-WebSocket-Key".to_string(),
+            "Sec-WebSocket-Version".to_string(),
+        ];
+        
+        let mut optional_headers = vec![
+            "Sec-WebSocket-Protocol".to_string(),
+            "Sec-WebSocket-Extensions".to_string(),
+        ];
+        
+        // 添加自定义头部到可选头部列表
+        for key in self.config.custom_headers.keys() {
+            optional_headers.push(key.clone());
+        }
+        
+        // 支持所有HTTP版本到WebSocket的升级路径
         vec![
-            UpgradePath {
-                from: ProtocolType::HTTP1_1,
-                to: ProtocolType::WebSocket,
-                method: UpgradeMethod::Negotiation,
-                required_headers: vec![
-                    "Upgrade".to_string(),
-                    "Connection".to_string(),
-                    "Sec-WebSocket-Key".to_string(),
-                    "Sec-WebSocket-Version".to_string(),
-                ],
-                optional_headers: vec![
-                    "Sec-WebSocket-Protocol".to_string(),
-                    "Sec-WebSocket-Extensions".to_string(),
-                ],
-            },
             UpgradePath {
                 from: ProtocolType::HTTP1_0,
                 to: ProtocolType::WebSocket,
                 method: UpgradeMethod::Negotiation,
-                required_headers: vec![
-                    "Upgrade".to_string(),
-                    "Connection".to_string(),
-                    "Sec-WebSocket-Key".to_string(),
-                    "Sec-WebSocket-Version".to_string(),
-                ],
-                optional_headers: vec![
-                    "Sec-WebSocket-Protocol".to_string(),
-                    "Sec-WebSocket-Extensions".to_string(),
-                ],
+                required_headers: required_headers.clone(),
+                optional_headers: optional_headers.clone(),
+            },
+            UpgradePath {
+                from: ProtocolType::HTTP1_1,
+                to: ProtocolType::WebSocket,
+                method: UpgradeMethod::Negotiation,
+                required_headers: required_headers.clone(),
+                optional_headers: optional_headers.clone(),
+            },
+            UpgradePath {
+                from: ProtocolType::HTTP2,
+                to: ProtocolType::WebSocket,
+                method: UpgradeMethod::Negotiation,
+                required_headers: required_headers.clone(),
+                optional_headers: optional_headers.clone(),
+            },
+            UpgradePath {
+                from: ProtocolType::HTTP3,
+                to: ProtocolType::WebSocket,
+                method: UpgradeMethod::Negotiation,
+                required_headers: required_headers,
+                optional_headers: optional_headers,
             },
         ]
     }
