@@ -9,6 +9,311 @@ use crate::error::{DetectorError, Result};
 use crate::simd::{SimdDetectionResult, SimdDetector, SimdInstructionSet};
 use std::time::Instant;
 
+/// 检测x86_64特性
+fn detect_x86_features() -> (bool, bool, bool, bool) {
+    let has_sse2 = is_x86_feature_detected!("sse2");
+    let has_sse41 = is_x86_feature_detected!("sse4.1");
+    let has_avx2 = is_x86_feature_detected!("avx2");
+    let has_avx512 = is_x86_feature_detected!("avx512f");
+    
+    (has_sse2, has_sse41, has_avx2, has_avx512)
+}
+
+/// AVX512 SIMD探测器
+pub struct Avx512Detector {
+    instruction_set: SimdInstructionSet,
+}
+
+impl Avx512Detector {
+    /// 创建新的AVX512 SIMD探测器
+    pub fn new() -> Self {
+        Self {
+            instruction_set: SimdInstructionSet::AVX512,
+        }
+    }
+}
+
+impl SimdDetector for Avx512Detector {
+    fn detect_http2(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        // 使用GenericSimdDetector作为基础实现
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_http2(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_quic(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_quic(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_grpc(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_grpc(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_websocket(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_websocket(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_tls(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_tls(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_multiple(&self, data: &[u8], protocols: &[ProtocolType]) -> Result<Vec<SimdDetectionResult>> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let results = detector.detect_multiple(data, protocols)?;
+        
+        Ok(results.into_iter().map(|result| {
+            SimdDetectionResult {
+                protocol: result.protocol,
+                confidence: result.confidence,
+                match_positions: result.match_positions,
+                instruction_set: self.instruction_set,
+            }
+        }).collect())
+    }
+    
+    fn instruction_set(&self) -> SimdInstructionSet {
+        self.instruction_set
+    }
+    
+    fn supports_protocol(&self, _protocol: ProtocolType) -> bool {
+        true
+    }
+}
+
+/// AVX2 SIMD探测器
+pub struct Avx2Detector {
+    instruction_set: SimdInstructionSet,
+}
+
+impl Avx2Detector {
+    /// 创建新的AVX2 SIMD探测器
+    pub fn new() -> Self {
+        Self {
+            instruction_set: SimdInstructionSet::AVX2,
+        }
+    }
+}
+
+impl SimdDetector for Avx2Detector {
+    fn detect_http2(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_http2(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_quic(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_quic(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_grpc(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_grpc(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_websocket(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_websocket(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_tls(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_tls(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_multiple(&self, data: &[u8], protocols: &[ProtocolType]) -> Result<Vec<SimdDetectionResult>> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let results = detector.detect_multiple(data, protocols)?;
+        
+        Ok(results.into_iter().map(|result| {
+            SimdDetectionResult {
+                protocol: result.protocol,
+                confidence: result.confidence,
+                match_positions: result.match_positions,
+                instruction_set: self.instruction_set,
+            }
+        }).collect())
+    }
+    
+    fn instruction_set(&self) -> SimdInstructionSet {
+        self.instruction_set
+    }
+    
+    fn supports_protocol(&self, _protocol: ProtocolType) -> bool {
+        true
+    }
+}
+
+/// SSE2 SIMD探测器
+pub struct Sse2Detector {
+    instruction_set: SimdInstructionSet,
+}
+
+impl Sse2Detector {
+    /// 创建新的SSE2 SIMD探测器
+    pub fn new() -> Self {
+        Self {
+            instruction_set: SimdInstructionSet::SSE2,
+        }
+    }
+}
+
+impl SimdDetector for Sse2Detector {
+    fn detect_http2(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_http2(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_quic(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_quic(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_grpc(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_grpc(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_websocket(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_websocket(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_tls(&self, data: &[u8]) -> Result<SimdDetectionResult> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let result = detector.detect_tls(data)?;
+        
+        Ok(SimdDetectionResult {
+            protocol: result.protocol,
+            confidence: result.confidence,
+            match_positions: result.match_positions,
+            instruction_set: self.instruction_set,
+        })
+    }
+    
+    fn detect_multiple(&self, data: &[u8], protocols: &[ProtocolType]) -> Result<Vec<SimdDetectionResult>> {
+        let detector = crate::simd::detector::GenericSimdDetector::new();
+        let results = detector.detect_multiple(data, protocols)?;
+        
+        Ok(results.into_iter().map(|result| {
+            SimdDetectionResult {
+                protocol: result.protocol,
+                confidence: result.confidence,
+                match_positions: result.match_positions,
+                instruction_set: self.instruction_set,
+            }
+        }).collect())
+    }
+    
+    fn instruction_set(&self) -> SimdInstructionSet {
+        self.instruction_set
+    }
+    
+    fn supports_protocol(&self, _protocol: ProtocolType) -> bool {
+        true
+    }
+}
+
 /// x86_64 SIMD探测器
 pub struct X86_64SimdDetector {
     instruction_set: SimdInstructionSet,
@@ -20,9 +325,11 @@ pub struct X86_64SimdDetector {
 impl X86_64SimdDetector {
     /// 创建新的x86_64 SIMD探测器
     pub fn new() -> Self {
-        let (has_sse2, has_sse41, has_avx2) = detect_x86_features();
+        let (has_sse2, has_sse41, has_avx2, has_avx512) = detect_x86_features();
         
-        let instruction_set = if has_avx2 {
+        let instruction_set = if has_avx512 {
+            SimdInstructionSet::AVX512
+        } else if has_avx2 {
             SimdInstructionSet::AVX2
         } else if has_sse41 {
             SimdInstructionSet::SSE41
@@ -199,6 +506,132 @@ impl X86_64SimdDetector {
         
         None
     }
+}
+
+/// 使用AVX2指令集计算字节出现次数
+#[cfg(target_arch = "x86_64")]
+pub unsafe fn avx2_count_bytes(data: &[u8], byte: u8) -> usize {
+    if !is_x86_feature_detected!("avx2") || data.is_empty() {
+        return data.iter().filter(|&&b| b == byte).count();
+    }
+    
+    let needle = _mm256_set1_epi8(byte as i8);
+    let mut count = 0;
+    let mut pos = 0;
+    
+    // 处理32字节对齐的块
+    while pos + 32 <= data.len() {
+        let chunk = _mm256_loadu_si256(data.as_ptr().add(pos) as *const __m256i);
+        let cmp = _mm256_cmpeq_epi8(chunk, needle);
+        let mask = _mm256_movemask_epi8(cmp) as u32;
+        count += mask.count_ones() as usize;
+        pos += 32;
+    }
+    
+    // 处理剩余字节
+    for i in pos..data.len() {
+        if data[i] == byte {
+            count += 1;
+        }
+    }
+    
+    count
+}
+
+/// 使用SSE2指令集计算字节出现次数
+#[cfg(target_arch = "x86_64")]
+pub unsafe fn sse2_count_bytes(data: &[u8], byte: u8) -> usize {
+    if !is_x86_feature_detected!("sse2") || data.is_empty() {
+        return data.iter().filter(|&&b| b == byte).count();
+    }
+    
+    let needle = _mm_set1_epi8(byte as i8);
+    let mut count = 0;
+    let mut pos = 0;
+    
+    // 处理16字节对齐的块
+    while pos + 16 <= data.len() {
+        let chunk = _mm_loadu_si128(data.as_ptr().add(pos) as *const __m128i);
+        let cmp = _mm_cmpeq_epi8(chunk, needle);
+        let mask = _mm_movemask_epi8(cmp) as u16;
+        count += mask.count_ones() as usize;
+        pos += 16;
+    }
+    
+    // 处理剩余字节
+    for i in pos..data.len() {
+        if data[i] == byte {
+            count += 1;
+        }
+    }
+    
+    count
+}
+
+/// 使用AVX2指令集查找字节
+#[cfg(target_arch = "x86_64")]
+pub unsafe fn avx2_find_byte(data: &[u8], byte: u8) -> Option<usize> {
+    if !is_x86_feature_detected!("avx2") || data.is_empty() {
+        return data.iter().position(|&b| b == byte);
+    }
+    
+    let needle = _mm256_set1_epi8(byte as i8);
+    let mut pos = 0;
+    
+    // 处理32字节对齐的块
+    while pos + 32 <= data.len() {
+        let chunk = _mm256_loadu_si256(data.as_ptr().add(pos) as *const __m256i);
+        let cmp = _mm256_cmpeq_epi8(chunk, needle);
+        let mask = _mm256_movemask_epi8(cmp) as u32;
+        
+        if mask != 0 {
+            return Some(pos + mask.trailing_zeros() as usize);
+        }
+        
+        pos += 32;
+    }
+    
+    // 处理剩余字节
+    for i in pos..data.len() {
+        if data[i] == byte {
+            return Some(i);
+        }
+    }
+    
+    None
+}
+
+/// 使用SSE2指令集查找字节
+#[cfg(target_arch = "x86_64")]
+pub unsafe fn sse2_find_byte(data: &[u8], byte: u8) -> Option<usize> {
+    if !is_x86_feature_detected!("sse2") || data.is_empty() {
+        return data.iter().position(|&b| b == byte);
+    }
+    
+    let needle = _mm_set1_epi8(byte as i8);
+    let mut pos = 0;
+    
+    // 处理16字节对齐的块
+    while pos + 16 <= data.len() {
+        let chunk = _mm_loadu_si128(data.as_ptr().add(pos) as *const __m128i);
+        let cmp = _mm_cmpeq_epi8(chunk, needle);
+        let mask = _mm_movemask_epi8(cmp) as u16;
+        
+        if mask != 0 {
+            return Some(pos + mask.trailing_zeros() as usize);
+        }
+        
+        pos += 16;
+    }
+    
+    // 处理剩余字节
+    for i in pos..data.len() {
+        if data[i] == byte {
+            return Some(i);
+        }
+    }
+    
+    None
 }
 
 impl SimdDetector for X86_64SimdDetector {
@@ -461,22 +894,5 @@ impl SimdDetector for X86_64SimdDetector {
                 | ProtocolType::WebSocket
                 | ProtocolType::TLS
         )
-    }
-}
-
-/// 检测x86_64 CPU特性
-fn detect_x86_features() -> (bool, bool, bool) {
-    #[cfg(target_arch = "x86_64")]
-    {
-        (
-            is_x86_feature_detected!("sse2"),
-            is_x86_feature_detected!("sse4.1"),
-            is_x86_feature_detected!("avx2"),
-        )
-    }
-    
-    #[cfg(not(target_arch = "x86_64"))]
-    {
-        (false, false, false)
     }
 }

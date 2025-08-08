@@ -38,6 +38,8 @@ pub enum SimdInstructionSet {
     None,
     /// SSE2
     SSE2,
+    /// SSE4.1
+    SSE41,
     /// AVX2
     AVX2,
     /// AVX512
@@ -163,9 +165,13 @@ pub fn simd_count_bytes(data: &[u8], byte: u8) -> usize {
     #[cfg(target_arch = "x86_64")]
     {
         if is_x86_feature_detected!("avx2") {
-            return x86_64::avx2_count_bytes(data, byte);
+            unsafe {
+                return x86_64::avx2_count_bytes(data, byte);
+            }
         } else if is_x86_feature_detected!("sse2") {
-            return x86_64::sse2_count_bytes(data, byte);
+            unsafe {
+                return x86_64::sse2_count_bytes(data, byte);
+            }
         }
     }
     
@@ -178,9 +184,13 @@ pub fn simd_find_byte(data: &[u8], byte: u8) -> Option<usize> {
     #[cfg(target_arch = "x86_64")]
     {
         if is_x86_feature_detected!("avx2") {
-            return x86_64::avx2_find_byte(data, byte);
+            unsafe {
+                return x86_64::avx2_find_byte(data, byte);
+            }
         } else if is_x86_feature_detected!("sse2") {
-            return x86_64::sse2_find_byte(data, byte);
+            unsafe {
+                return x86_64::sse2_find_byte(data, byte);
+            }
         }
     }
     

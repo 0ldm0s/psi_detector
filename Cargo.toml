@@ -1,6 +1,6 @@
 [package]
 name = "psi_detector"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["0ldm0s <oldmos@gmail.com>"]
 description = "Protocol detection and upgrade framework inspired by Yuri's PSI Detector"
@@ -34,6 +34,7 @@ active-probing = []
 
 # 主题支持
 redalert-theme = []
+transport-integration = []
 
 [dependencies]
 # 异步运行时
