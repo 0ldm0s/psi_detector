@@ -435,6 +435,7 @@ impl SimdDetector for Wasm32SimdDetector {
                 | ProtocolType::GRPC
                 | ProtocolType::WebSocket
                 | ProtocolType::TLS
+                | ProtocolType::UDP
         )
     }
 }

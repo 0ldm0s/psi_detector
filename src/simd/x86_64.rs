@@ -893,6 +893,7 @@ impl SimdDetector for X86_64SimdDetector {
                 | ProtocolType::GRPC
                 | ProtocolType::WebSocket
                 | ProtocolType::TLS
+                | ProtocolType::UDP
         )
     }
 }

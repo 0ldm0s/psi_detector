@@ -103,9 +103,21 @@ impl DetectorBuilder {
         self
     }
     
+    /// 启用UDP协议探测
+    pub fn enable_udp(mut self) -> Self {
+        self.enabled_protocols.insert(ProtocolType::UDP);
+        self
+    }
+    
     /// 启用WebSocket协议探测
     pub fn enable_websocket(mut self) -> Self {
         self.enabled_protocols.insert(ProtocolType::WebSocket);
+        self
+    }
+    
+    /// 启用gRPC协议探测
+    pub fn enable_grpc(mut self) -> Self {
+        self.enabled_protocols.insert(ProtocolType::GRPC);
         self
     }
     
@@ -113,9 +125,11 @@ impl DetectorBuilder {
     pub fn enable_all(mut self) -> Self {
         self.enabled_protocols.insert(ProtocolType::HTTP1_1);
         self.enabled_protocols.insert(ProtocolType::HTTP2);
+        self.enabled_protocols.insert(ProtocolType::GRPC);
         self.enabled_protocols.insert(ProtocolType::TLS);
         self.enabled_protocols.insert(ProtocolType::QUIC);
         self.enabled_protocols.insert(ProtocolType::SSH);
+        self.enabled_protocols.insert(ProtocolType::UDP);
         self.enabled_protocols.insert(ProtocolType::WebSocket);
         self
     }

@@ -32,6 +32,9 @@ runtime-async-std = ["async-std"]
 heuristic-detection = []
 active-probing = []
 
+# 集成支持
+transport-integration = []
+
 # 主题支持
 redalert-theme = []
 transport-integration = []

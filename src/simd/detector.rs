@@ -308,6 +308,7 @@ impl SimdDetector for GenericSimdDetector {
                 | ProtocolType::GRPC
                 | ProtocolType::WebSocket
                 | ProtocolType::TLS
+                | ProtocolType::UDP
         )
     }
 }
