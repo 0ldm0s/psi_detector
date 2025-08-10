@@ -37,7 +37,6 @@ transport-integration = []
 
 # 主题支持
 redalert-theme = []
-transport-integration = []
 
 [dependencies]
 # 异步运行时
