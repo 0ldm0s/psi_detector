@@ -103,6 +103,12 @@ impl DetectorBuilder {
         self
     }
     
+    /// 启用gRPC协议探测
+    pub fn enable_grpc(mut self) -> Self {
+        self.enabled_protocols.insert(ProtocolType::GRPC);
+        self
+    }
+    
     /// 启用WebSocket协议探测
     pub fn enable_websocket(mut self) -> Self {
         self.enabled_protocols.insert(ProtocolType::WebSocket);
