@@ -103,15 +103,9 @@ impl DetectorBuilder {
         self
     }
     
-<<<<<<< HEAD
-    /// 启用gRPC协议探测
-    pub fn enable_grpc(mut self) -> Self {
-        self.enabled_protocols.insert(ProtocolType::GRPC);
-=======
     /// 启用UDP协议探测
     pub fn enable_udp(mut self) -> Self {
         self.enabled_protocols.insert(ProtocolType::UDP);
->>>>>>> 50f4f255d9c1329b529085a80b19462a079fcd30
         self
     }
     
