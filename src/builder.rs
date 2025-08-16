@@ -103,9 +103,15 @@ impl DetectorBuilder {
         self
     }
     
+<<<<<<< HEAD
     /// 启用gRPC协议探测
     pub fn enable_grpc(mut self) -> Self {
         self.enabled_protocols.insert(ProtocolType::GRPC);
+=======
+    /// 启用UDP协议探测
+    pub fn enable_udp(mut self) -> Self {
+        self.enabled_protocols.insert(ProtocolType::UDP);
+>>>>>>> 50f4f255d9c1329b529085a80b19462a079fcd30
         self
     }
     
@@ -115,13 +121,21 @@ impl DetectorBuilder {
         self
     }
     
+    /// 启用gRPC协议探测
+    pub fn enable_grpc(mut self) -> Self {
+        self.enabled_protocols.insert(ProtocolType::GRPC);
+        self
+    }
+    
     /// 启用所有支持的协议
     pub fn enable_all(mut self) -> Self {
         self.enabled_protocols.insert(ProtocolType::HTTP1_1);
         self.enabled_protocols.insert(ProtocolType::HTTP2);
+        self.enabled_protocols.insert(ProtocolType::GRPC);
         self.enabled_protocols.insert(ProtocolType::TLS);
         self.enabled_protocols.insert(ProtocolType::QUIC);
         self.enabled_protocols.insert(ProtocolType::SSH);
+        self.enabled_protocols.insert(ProtocolType::UDP);
         self.enabled_protocols.insert(ProtocolType::WebSocket);
         self
     }

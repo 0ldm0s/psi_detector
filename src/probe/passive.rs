@@ -444,6 +444,7 @@ impl ProtocolProbe for PassiveProbe {
             ProtocolType::WebSocket,
             ProtocolType::TLS,
             ProtocolType::SSH,
+            ProtocolType::UDP,
         ]
     }
     

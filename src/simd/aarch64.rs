@@ -464,6 +464,7 @@ impl SimdDetector for AArch64SimdDetector {
                 | ProtocolType::GRPC
                 | ProtocolType::WebSocket
                 | ProtocolType::TLS
+                | ProtocolType::UDP
         )
     }
 }

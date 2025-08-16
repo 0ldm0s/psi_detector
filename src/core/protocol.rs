@@ -26,6 +26,8 @@ pub enum ProtocolType {
     MQTT,
     /// TCP (原始TCP流)
     TCP,
+    /// UDP (用户数据报协议)
+    UDP,
     /// TLS
     TLS,
     /// SSH
@@ -46,6 +48,7 @@ impl fmt::Display for ProtocolType {
             Self::QUIC => write!(f, "QUIC"),
             Self::MQTT => write!(f, "MQTT"),
             Self::TCP => write!(f, "TCP"),
+            Self::UDP => write!(f, "UDP"),
             Self::TLS => write!(f, "TLS"),
             Self::SSH => write!(f, "SSH"),
             Self::Unknown => write!(f, "Unknown"),
@@ -65,7 +68,7 @@ impl ProtocolType {
             Self::MQTT => Some(1883),
             Self::TLS => Some(443),
             Self::SSH => Some(22),
-            Self::TCP | Self::Unknown => None,
+            Self::TCP | Self::UDP | Self::Unknown => None,
         }
     }
     
@@ -86,7 +89,7 @@ impl ProtocolType {
     pub fn supports_upgrade(&self) -> bool {
         matches!(
             self,
-            Self::HTTP1_0 | Self::HTTP1_1 | Self::HTTP2 | Self::TCP
+            Self::HTTP1_0 | Self::HTTP1_1 | Self::HTTP2 | Self::TCP | Self::UDP
         )
     }
     
@@ -106,7 +109,7 @@ impl ProtocolType {
             Self::WebSocket => ProtocolFamily::WebSocket,
             Self::QUIC => ProtocolFamily::QUIC,
             Self::MQTT => ProtocolFamily::IoT,
-            Self::TCP => ProtocolFamily::Transport,
+            Self::TCP | Self::UDP => ProtocolFamily::Transport,
             Self::TLS => ProtocolFamily::Security,
             Self::SSH => ProtocolFamily::Remote,
             Self::Unknown => ProtocolFamily::Unknown,
@@ -125,6 +128,7 @@ impl ProtocolType {
             Self::QUIC,
             Self::MQTT,
             Self::TCP,
+            Self::UDP,
             Self::TLS,
             Self::SSH,
         ]
