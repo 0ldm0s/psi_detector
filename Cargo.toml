@@ -1,6 +1,6 @@
 [package]
 name = "psi_detector"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["0ldm0s <oldmos@gmail.com>"]
 description = "Protocol detection and upgrade framework inspired by Yuri's PSI Detector"
@@ -57,6 +57,9 @@ wide = "0.7"
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# 异步trait
+async-trait = "0.1"
 
 # 错误处理
 thiserror = "1.0"

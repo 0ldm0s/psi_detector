@@ -313,38 +313,74 @@ impl SimdDetector for GenericSimdDetector {
     }
 }
 
-/// 在数据中查找模式
+/// 在数据中查找模式 - 优化版本
 fn find_pattern(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
     }
     
-    for i in 0..=haystack.len() - needle.len() {
-        if haystack[i..i + needle.len()] == *needle {
-            return Some(i);
+    // 使用更高效的Boyer-Moore风格算法的简化版
+    let needle_len = needle.len();
+    let haystack_len = haystack.len();
+    
+    // 对于短模式，使用简单搜索
+    if needle_len <= 4 {
+        return haystack.windows(needle_len).position(|window| window == needle);
+    }
+    
+    // 对于长模式，使用更高效的搜索
+    let first_byte = needle[0];
+    let last_byte = needle[needle_len - 1];
+    
+    let mut i = 0;
+    while i <= haystack_len - needle_len {
+        // 快速检查首尾字节
+        if haystack[i] == first_byte && haystack[i + needle_len - 1] == last_byte {
+            // 检查完整匹配
+            if &haystack[i..i + needle_len] == needle {
+                return Some(i);
+            }
         }
+        i += 1;
     }
     
     None
 }
 
-/// 不区分大小写的模式查找
+/// 不区分大小写的模式查找 - 优化版本
 fn find_pattern_case_insensitive(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
     }
     
-    for i in 0..=haystack.len() - needle.len() {
-        let mut matches = true;
-        for j in 0..needle.len() {
-            if haystack[i + j].to_ascii_lowercase() != needle[j].to_ascii_lowercase() {
-                matches = false;
-                break;
+    let needle_len = needle.len();
+    let haystack_len = haystack.len();
+    
+    // 预计算needle的小写版本以避免重复转换
+    let needle_lower: Vec<u8> = needle.iter().map(|&b| b.to_ascii_lowercase()).collect();
+    let first_lower = needle_lower[0];
+    let last_lower = needle_lower[needle_len - 1];
+    
+    let mut i = 0;
+    while i <= haystack_len - needle_len {
+        // 快速检查首尾字节（小写）
+        let first_match = haystack[i].to_ascii_lowercase() == first_lower;
+        let last_match = haystack[i + needle_len - 1].to_ascii_lowercase() == last_lower;
+        
+        if first_match && last_match {
+            // 检查完整匹配
+            let mut all_match = true;
+            for j in 0..needle_len {
+                if haystack[i + j].to_ascii_lowercase() != needle_lower[j] {
+                    all_match = false;
+                    break;
+                }
+            }
+            if all_match {
+                return Some(i);
             }
         }
-        if matches {
-            return Some(i);
-        }
+        i += 1;
     }
     
     None

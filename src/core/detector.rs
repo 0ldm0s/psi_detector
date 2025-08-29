@@ -4,6 +4,7 @@
 
 use crate::core::protocol::{ProtocolType, ProtocolInfo};
 use crate::core::probe::{ProbeRegistry, ProbeConfig, ProbeContext, ProbeAggregator};
+use crate::core::magic::MagicDetector;
 use crate::error::{DetectorError, Result};
 use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
@@ -150,6 +151,7 @@ pub struct DefaultProtocolDetector {
     detection_config: DetectionConfig,
     enabled_protocols: Vec<ProtocolType>,
     aggregator: ProbeAggregator,
+    magic_detector: MagicDetector,
 }
 
 impl DefaultProtocolDetector {
@@ -162,12 +164,24 @@ impl DefaultProtocolDetector {
     ) -> Result<Self> {
         let aggregator = ProbeAggregator::new(probe_config.clone());
         
+        // 验证配置：必须至少启用一个协议
+        if enabled_protocols.is_empty() {
+            return Err(DetectorError::config_error(
+                "至少需要启用一个协议，否则无法进行协议检测"
+            ));
+        }
+        
+        // 创建魔法包检测器并设置启用的协议
+        let magic_detector = MagicDetector::new()
+            .with_enabled_protocols(enabled_protocols.clone());
+        
         Ok(Self {
             registry,
             probe_config,
             detection_config,
             enabled_protocols,
             aggregator,
+            magic_detector,
         })
     }
     
@@ -206,75 +220,95 @@ impl ProtocolDetector for DefaultProtocolDetector {
             ));
         }
         
-        // 收集所有探测结果
-        let mut all_results = Vec::new();
+        // 🚀 第一阶段：超快速魔法包检测（前几个字节启发式判断）
+        if let Some(magic_result) = self.magic_detector.quick_detect(data) {
+            // 如果魔法包检测置信度很高，直接返回结果
+            if magic_result.confidence >= 0.95 {
+                let detection_time = start_time.elapsed();
+                return Ok(DetectionResult::new(
+                    magic_result,
+                    detection_time,
+                    DetectionMethod::SimdAccelerated, // 魔法包检测视为SIMD加速
+                    "MagicBytesDetector".to_string(),
+                ));
+            }
+            
+            // 中等置信度的魔法包结果作为候选
+            context.add_candidate(magic_result);
+        }
         
-        // 对每个启用的协议运行探测器
-        let start_time = Instant::now();
+        // 预分配结果容器以减少内存重分配
+        let mut all_results = Vec::with_capacity(self.enabled_protocols.len());
+        
+        // 缓存超时时间以避免重复访问
         let max_detection_time = self.detection_config.timeout;
         
+        // 优化探测器循环：避免重复探测，快速失败策略
+        let mut processed_probes = std::collections::HashSet::new();
+        
+        // 🎯 严格协议过滤：只运行启用协议的探测器（核心性能优化）
         for &protocol in &self.enabled_protocols {
-            // 更频繁的超时检查
+            // 快速超时检查
             if start_time.elapsed() > max_detection_time {
                 break;
             }
             
-            let probes = self.registry.get_probes(protocol);
-            
+            let probes = self.registry.get_probes_for_enabled_protocol(protocol, &self.enabled_protocols);
             for probe in probes {
-                // 检查是否需要更多数据
-                if probe.needs_more_data(data) {
+                let probe_name = probe.name();
+                
+                // 避免重复运行同一探测器
+                if processed_probes.contains(probe_name) {
                     continue;
                 }
+                processed_probes.insert(probe_name);
                 
-                // 更频繁的超时检查
-                if start_time.elapsed() > max_detection_time {
-                    break;
+                // 检查是否需要更多数据（快速失败）
+                if probe.needs_more_data(data) {
+                    continue;
                 }
                 
                 // 执行探测
                 match probe.probe(data, &mut context) {
                     Ok(Some(protocol_info)) => {
-                        all_results.push(protocol_info);
+                        // 只接受启用协议的结果
+                        if self.enabled_protocols.contains(&protocol_info.protocol_type) {
+                            let high_confidence = protocol_info.confidence >= 0.9;
+                            all_results.push(protocol_info);
+                            
+                            // 如果找到高置信度结果，可以提前结束
+                            if high_confidence {
+                                break;
+                            }
+                        }
                     }
                     Ok(None) => {
                         // 探测器没有检测到协议，继续
                     }
-                    Err(e) => {
-                        // 记录错误但继续其他探测器
-                        eprintln!("探测器 {} 出错: {}", probe.name(), e);
+                    Err(_) => {
+                        // 静默忽略错误，避免性能开销
                     }
+                }
+                
+                // 每5个探测器检查一次超时
+                if processed_probes.len() % 5 == 0 && start_time.elapsed() > max_detection_time {
+                    break;
                 }
             }
         }
         
-        // 运行所有全局探测器（支持未知协议的探测器）
-        let all_probes = self.registry.get_all_probes();
-        for probe in all_probes {
-            // 检查是否需要更多数据
-            if probe.needs_more_data(data) {
-                continue;
-            }
-            
-            // 检查超时
-            if context.is_timeout(self.detection_config.timeout) {
-                break;
-            }
-            
-            // 执行探测
-            match probe.probe(data, &mut context) {
-                Ok(Some(protocol_info)) => {
-                    all_results.push(protocol_info);
-                }
-                Ok(None) => {
-                    // 探测器没有检测到协议，继续
-                }
-                Err(e) => {
-                    // 记录错误但继续其他探测器
-                    eprintln!("探测器 {} 出错: {}", probe.name(), e);
-                }
-            }
+        // 🚨 性能优化：不再运行全局探测器，严格按配置执行
+        // 如果没有找到结果但有启用的协议，说明可能是不匹配的流量
+        // 在严格模式下，这种流量应该被拒绝而不是继续探测
+        
+        // 🔍 第三阶段：如果没有找到结果，尝试深度魔法包检测
+        if all_results.is_empty() {
+            let deep_magic_results = self.magic_detector.deep_detect(data);
+            all_results.extend(deep_magic_results);
         }
+        
+        // 合并魔法包候选结果
+        all_results.extend(context.candidates.clone());
         
         // 聚合结果
         let best_result = self.aggregator.aggregate(all_results)

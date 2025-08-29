@@ -121,6 +121,12 @@ impl DetectorBuilder {
         self
     }
     
+    /// 启用自定义协议探测
+    pub fn enable_custom(mut self) -> Self {
+        self.enabled_protocols.insert(ProtocolType::Custom);
+        self
+    }
+    
     /// 启用所有支持的协议
     pub fn enable_all(mut self) -> Self {
         self.enabled_protocols.insert(ProtocolType::HTTP1_1);
@@ -378,10 +384,16 @@ impl DetectorBuilder {
     
     /// 构建探测器实例
     pub fn build(self) -> Result<DefaultProtocolDetector> {
-        // 验证配置
+        // 🚨 严格模式验证：必须配置协议，否则禁止启动
         if self.enabled_protocols.is_empty() {
             return Err(DetectorError::config_error(
-                "至少需要启用一个协议"
+                "严格模式：必须至少启用一个协议！\n\
+                推荐配置示例：\n\
+                - HTTP服务器: .enable_http().enable_websocket().enable_tls()\n\
+                - 游戏服务器: .add_custom_probe(your_game_protocol)\n\
+                - SSH服务器: .enable_ssh().enable_tls()\n\
+                \n\
+                这样可以避免性能浪费和安全风险。"
             ));
         }
         
@@ -419,7 +431,20 @@ impl DetectorBuilder {
      
      /// 构建Agent实例
      pub fn build_agent(self) -> Result<Agent> {
-         // 验证配置
+         // 🚨 严格模式验证：Agent必须明确配置协议
+         if self.enabled_protocols.is_empty() {
+             return Err(DetectorError::config_error(
+                 "严格模式：Agent必须至少启用一个协议！\n\
+                 Agent角色特定的推荐配置：\n\
+                 - Server Agent: .with_role(Role::Server).enable_http().enable_tls()\n\
+                 - Client Agent: .with_role(Role::Client).enable_http2().enable_quic()\n\
+                 - Game Server: .with_role(Role::Server).add_custom_probe(game_protocol)\n\
+                 \n\
+                 明确的协议配置可以显著提高性能和安全性。"
+             ));
+         }
+         
+         // 验证其他配置
         self.validate_config()?;
          
          // 创建探测器注册表

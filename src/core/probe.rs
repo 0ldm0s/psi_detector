@@ -175,7 +175,38 @@ impl ProbeRegistry {
         probes
     }
     
-    /// 获取所有探测器
+    /// 获取指定协议的探测器（严格过滤版本）
+    /// 
+    /// 🎯 性能优化：只返回能检测启用协议的探测器
+    pub fn get_probes_for_enabled_protocol(&self, protocol: ProtocolType, enabled_protocols: &[ProtocolType]) -> Vec<&dyn ProtocolProbe> {
+        let mut probes = Vec::new();
+        
+        // 添加协议特定的探测器
+        if let Some(protocol_probes) = self.probes.get(&protocol) {
+            probes.extend(protocol_probes.iter().map(|p| p.as_ref()));
+        }
+        
+        // 添加支持该协议的全局探测器，但只有当它们的所有支持协议都在启用列表中时
+        for probe in &self.global_probes {
+            let supported = probe.supported_protocols();
+            
+            // 检查探测器是否支持当前协议
+            if supported.contains(&protocol) {
+                // 严格过滤：探测器支持的协议必须都在启用列表中，或者至少有一个启用协议
+                let has_enabled_protocol = supported.iter().any(|p| enabled_protocols.contains(p));
+                if has_enabled_protocol {
+                    probes.push(probe.as_ref());
+                }
+            }
+        }
+        
+        // 按优先级排序
+        probes.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        probes
+    }
+    
+    /// 获取所有探测器（保留用于向后兼容，但不推荐使用）
+    #[deprecated(note = "使用 get_probes_for_enabled_protocol 以获得更好的性能")]
     pub fn get_all_probes(&self) -> Vec<&dyn ProtocolProbe> {
         let mut probes = Vec::new();
         

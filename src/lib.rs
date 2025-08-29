@@ -74,25 +74,25 @@ pub mod yuri {
     //! 红警尤里主题的协议类型别名和便捷函数
     
     use crate::core::protocol::ProtocolType;
-    use crate::upgrade::UpgradePipeline;
+    // use crate::upgrade::UpgradePipeline;  // 暂时注释，类型不存在
     use crate::builder::DetectorBuilder;
     use crate::core::detector::ProtocolDetector;
     
     /// 心灵扫描 - 协议类型别名
     pub type MindScan = ProtocolType;
     
-    /// 心灵升级 - 升级管道别名
-    pub type PsychicUpgrade = UpgradePipeline;
+    /// 心灵升级 - 升级管道别名 (暂时注释)
+    // pub type PsychicUpgrade = UpgradePipeline;
     
     /// 创建心灵探测器
     pub fn psychic_detection() -> DetectorBuilder {
         DetectorBuilder::new().psychic_detection()
     }
     
-    /// 心灵控制 - 协议升级
-    pub fn mind_control() -> UpgradePipeline {
-        UpgradePipeline::new()
-    }
+    // 心灵控制 - 协议升级 (暂时注释)
+    // pub fn mind_control() -> UpgradePipeline {
+    //     UpgradePipeline::new()
+    // }
 }
 
 /// 库版本信息

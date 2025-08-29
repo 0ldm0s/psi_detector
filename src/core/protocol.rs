@@ -32,6 +32,18 @@ pub enum ProtocolType {
     TLS,
     /// SSH
     SSH,
+    /// FTP
+    FTP,
+    /// SMTP
+    SMTP,
+    /// DNS
+    DNS,
+    /// Redis
+    Redis,
+    /// MySQL
+    MySQL,
+    /// 自定义协议
+    Custom,
     /// 未知协议
     Unknown,
 }
@@ -51,6 +63,12 @@ impl fmt::Display for ProtocolType {
             Self::UDP => write!(f, "UDP"),
             Self::TLS => write!(f, "TLS"),
             Self::SSH => write!(f, "SSH"),
+            Self::FTP => write!(f, "FTP"),
+            Self::SMTP => write!(f, "SMTP"),
+            Self::DNS => write!(f, "DNS"),
+            Self::Redis => write!(f, "Redis"),
+            Self::MySQL => write!(f, "MySQL"),
+            Self::Custom => write!(f, "Custom"),
             Self::Unknown => write!(f, "Unknown"),
         }
     }
@@ -68,7 +86,12 @@ impl ProtocolType {
             Self::MQTT => Some(1883),
             Self::TLS => Some(443),
             Self::SSH => Some(22),
-            Self::TCP | Self::UDP | Self::Unknown => None,
+            Self::FTP => Some(21),
+            Self::SMTP => Some(25),
+            Self::DNS => Some(53),
+            Self::Redis => Some(6379),
+            Self::MySQL => Some(3306),
+            Self::TCP | Self::UDP | Self::Custom | Self::Unknown => None,
         }
     }
     
@@ -112,6 +135,8 @@ impl ProtocolType {
             Self::TCP | Self::UDP => ProtocolFamily::Transport,
             Self::TLS => ProtocolFamily::Security,
             Self::SSH => ProtocolFamily::Remote,
+            Self::FTP | Self::SMTP | Self::DNS | Self::Redis | Self::MySQL => ProtocolFamily::Transport,
+            Self::Custom => ProtocolFamily::Unknown,
             Self::Unknown => ProtocolFamily::Unknown,
         }
     }
@@ -131,6 +156,12 @@ impl ProtocolType {
             Self::UDP,
             Self::TLS,
             Self::SSH,
+            Self::FTP,
+            Self::SMTP,
+            Self::DNS,
+            Self::Redis,
+            Self::MySQL,
+            Self::Custom,
         ]
     }
 }
