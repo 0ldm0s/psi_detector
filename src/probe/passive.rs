@@ -222,12 +222,16 @@ impl PassiveProbe {
         // 使用最后一个字节作为快速跳过的依据
         let last_byte = needle[needle.len() - 1];
         let mut i = needle.len() - 1;
+        let max_iterations = haystack.len() * 2;
+        let mut iteration_count = 0;
         
-        while i < haystack.len() {
+        while i < haystack.len() && iteration_count < max_iterations {
+            iteration_count += 1;
+            
             if haystack[i] == last_byte {
                 // 检查完整匹配
                 let start = i + 1 - needle.len();
-                if haystack[start..=i] == *needle {
+                if start <= i && haystack[start..=i] == *needle {
                     return true;
                 }
             }
@@ -376,23 +380,50 @@ impl ProbeEngine for PassiveProbe {
         let mut best_confidence = 0.0;
         
         // 尝试各种协议检测 (按优先级排序)
-        let detections = [
-            (ProtocolType::HTTP3, self.detect_http3(data)),  // HTTP/3 优先于 QUIC
-            (ProtocolType::QUIC, self.detect_quic(data)),
-            (ProtocolType::HTTP2, self.detect_http2(data)),
-            (ProtocolType::GRPC, self.detect_grpc(data)),
-            (ProtocolType::HTTP1_1, self.detect_http1(data)),
-            (ProtocolType::TLS, self.detect_tls(data)),
-            (ProtocolType::SSH, self.detect_ssh(data)),
-            (ProtocolType::WebSocket, self.detect_websocket(data)), // WebSocket 最后检测
-        ];
+        // 使用栈分配的数组来减少堆分配
+        let mut detections = [(ProtocolType::Unknown, 0.0); 8];
+        let mut detection_count = 0;
         
-        for (protocol, confidence_opt) in detections {
-            if let Some(confidence) = confidence_opt {
-                if confidence > best_confidence {
-                    best_confidence = confidence;
-                    best_protocol = protocol;
-                }
+        // 按优先级检测协议
+        if let Some(confidence) = self.detect_http3(data) {
+            detections[detection_count] = (ProtocolType::HTTP3, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_quic(data) {
+            detections[detection_count] = (ProtocolType::QUIC, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_http2(data) {
+            detections[detection_count] = (ProtocolType::HTTP2, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_grpc(data) {
+            detections[detection_count] = (ProtocolType::GRPC, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_http1(data) {
+            detections[detection_count] = (ProtocolType::HTTP1_1, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_tls(data) {
+            detections[detection_count] = (ProtocolType::TLS, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_ssh(data) {
+            detections[detection_count] = (ProtocolType::SSH, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_websocket(data) {
+            detections[detection_count] = (ProtocolType::WebSocket, confidence);
+            detection_count += 1;
+        }
+        
+        // 找到最佳匹配
+        for i in 0..detection_count {
+            let (protocol, confidence) = detections[i];
+            if confidence > best_confidence {
+                best_confidence = confidence;
+                best_protocol = protocol;
             }
         }
         
@@ -457,23 +488,50 @@ impl ProtocolProbe for PassiveProbe {
         let mut best_confidence = 0.0;
         
         // 尝试各种协议检测 (按优先级排序)
-        let detections = [
-            (ProtocolType::HTTP3, self.detect_http3(data)),  // HTTP/3 优先于 QUIC
-            (ProtocolType::QUIC, self.detect_quic(data)),
-            (ProtocolType::HTTP2, self.detect_http2(data)),
-            (ProtocolType::GRPC, self.detect_grpc(data)),
-            (ProtocolType::HTTP1_1, self.detect_http1(data)),
-            (ProtocolType::TLS, self.detect_tls(data)),
-            (ProtocolType::SSH, self.detect_ssh(data)),
-            (ProtocolType::WebSocket, self.detect_websocket(data)), // WebSocket 最后检测
-        ];
+        // 使用栈分配的数组来减少堆分配
+        let mut detections = [(ProtocolType::Unknown, 0.0); 8];
+        let mut detection_count = 0;
         
-        for (protocol, confidence_opt) in detections {
-            if let Some(confidence) = confidence_opt {
-                if confidence > best_confidence {
-                    best_confidence = confidence;
-                    best_protocol = protocol;
-                }
+        // 按优先级检测协议
+        if let Some(confidence) = self.detect_http3(data) {
+            detections[detection_count] = (ProtocolType::HTTP3, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_quic(data) {
+            detections[detection_count] = (ProtocolType::QUIC, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_http2(data) {
+            detections[detection_count] = (ProtocolType::HTTP2, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_grpc(data) {
+            detections[detection_count] = (ProtocolType::GRPC, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_http1(data) {
+            detections[detection_count] = (ProtocolType::HTTP1_1, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_tls(data) {
+            detections[detection_count] = (ProtocolType::TLS, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_ssh(data) {
+            detections[detection_count] = (ProtocolType::SSH, confidence);
+            detection_count += 1;
+        }
+        if let Some(confidence) = self.detect_websocket(data) {
+            detections[detection_count] = (ProtocolType::WebSocket, confidence);
+            detection_count += 1;
+        }
+        
+        // 找到最佳匹配
+        for i in 0..detection_count {
+            let (protocol, confidence) = detections[i];
+            if confidence > best_confidence {
+                best_confidence = confidence;
+                best_protocol = protocol;
             }
         }
         

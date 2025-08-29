@@ -210,7 +210,15 @@ impl ProtocolDetector for DefaultProtocolDetector {
         let mut all_results = Vec::new();
         
         // 对每个启用的协议运行探测器
+        let start_time = Instant::now();
+        let max_detection_time = self.detection_config.timeout;
+        
         for &protocol in &self.enabled_protocols {
+            // 更频繁的超时检查
+            if start_time.elapsed() > max_detection_time {
+                break;
+            }
+            
             let probes = self.registry.get_probes(protocol);
             
             for probe in probes {
@@ -219,8 +227,8 @@ impl ProtocolDetector for DefaultProtocolDetector {
                     continue;
                 }
                 
-                // 检查超时
-                if context.is_timeout(self.detection_config.timeout) {
+                // 更频繁的超时检查
+                if start_time.elapsed() > max_detection_time {
                     break;
                 }
                 
@@ -750,16 +758,18 @@ impl Agent {
     
     /// 更新连接计数
     pub fn update_connection_count(&self, delta: i32) -> Result<()> {
-        let mut state = self.state.write()
-            .map_err(|_| DetectorError::internal_error("Failed to write agent state"))?;
-        
-        if delta > 0 {
-            state.active_connections += delta as usize;
+        // 使用 try_write 避免阻塞，提高并发性能
+        if let Ok(mut state) = self.state.try_write() {
+            if delta > 0 {
+                state.active_connections += delta as usize;
+            } else {
+                state.active_connections = state.active_connections.saturating_sub((-delta) as usize);
+            }
+            state.last_activity = Instant::now();
         } else {
-            state.active_connections = state.active_connections.saturating_sub((-delta) as usize);
+            // 如果获取锁失败，记录警告但不阻塞
+            zerg_creep::warn!("Failed to acquire lock for connection count update");
         }
-        
-        state.last_activity = Instant::now();
         Ok(())
     }
     

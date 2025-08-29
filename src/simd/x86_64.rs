@@ -361,8 +361,12 @@ impl X86_64SimdDetector {
         // 对于较长的模式，使用滑动窗口
         let first_byte = needle[0];
         let mut pos = 0;
+        let max_iterations = haystack.len() * 2; // 防止无限循环
+        let mut iteration_count = 0;
         
-        while pos <= haystack.len() - needle.len() {
+        while pos <= haystack.len() - needle.len() && iteration_count < max_iterations {
+            iteration_count += 1;
+            
             if let Some(candidate) = self.avx2_find_byte(&haystack[pos..], first_byte) {
                 let actual_pos = pos + candidate;
                 if actual_pos + needle.len() <= haystack.len() {
@@ -370,7 +374,11 @@ impl X86_64SimdDetector {
                         return Some(actual_pos);
                     }
                 }
+                // 确保位置总是向前推进
                 pos = actual_pos + 1;
+                if pos <= actual_pos {
+                    pos = actual_pos + 1;
+                }
             } else {
                 break;
             }
@@ -426,8 +434,12 @@ impl X86_64SimdDetector {
         // 对于较长的模式，使用滑动窗口
         let first_byte = needle[0];
         let mut pos = 0;
+        let max_iterations = haystack.len() * 2; // 防止无限循环
+        let mut iteration_count = 0;
         
-        while pos <= haystack.len() - needle.len() {
+        while pos <= haystack.len() - needle.len() && iteration_count < max_iterations {
+            iteration_count += 1;
+            
             if let Some(candidate) = self.sse41_find_byte(&haystack[pos..], first_byte) {
                 let actual_pos = pos + candidate;
                 if actual_pos + needle.len() <= haystack.len() {
@@ -435,7 +447,11 @@ impl X86_64SimdDetector {
                         return Some(actual_pos);
                     }
                 }
+                // 确保位置总是向前推进
                 pos = actual_pos + 1;
+                if pos <= actual_pos {
+                    pos = actual_pos + 1;
+                }
             } else {
                 break;
             }

@@ -1351,7 +1351,7 @@ dependencies = [
 
 [[package]]
 name = "psi_detector"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-std",
@@ -2646,7 +2646,7 @@ dependencies = [
 
 [[package]]
 name = "zerg_creep"
-version = "0.1.2"
+version = "0.1.1"
 dependencies = [
  "arc-swap",
  "async-trait",

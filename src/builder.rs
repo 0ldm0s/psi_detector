@@ -330,12 +330,16 @@ impl DetectorBuilder {
     /// - 使用被动探测策略
     /// - 较短的超时时间
     /// - 较大的缓冲区
+    /// - 防止CPU 100%的保护机制
     pub fn high_performance(mut self) -> Self {
         self.probe_config.enable_simd = true;
         self.probe_config.strategy = ProbeStrategy::Passive;
         self.probe_config.max_probe_time = Duration::from_millis(50);
         self.probe_config.buffer_size = 8192;
         self.detection_config.timeout = Duration::from_millis(50);
+        // 添加保护机制
+        self.detection_config.min_probe_size = 16.max(self.detection_config.min_probe_size);
+        self.detection_config.max_probe_size = 4096.min(self.detection_config.max_probe_size);
         self
     }
     
