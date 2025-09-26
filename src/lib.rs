@@ -13,24 +13,7 @@
 //!
 //! ## 快速开始
 //!
-//! ```rust
-//! use psi_detector::{DetectorBuilder, ProtocolType, ProtocolDetector};
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let detector = DetectorBuilder::new()
-//!     .enable_http()
-//!     .enable_quic()
-//!     .build()?;
-//!
-//! let data = b"GET / HTTP/1.1\r\n\r\n";
-//! match detector.detect(data) {
-//!     Ok(result) if result.protocol_type() == ProtocolType::HTTP1_1 => println!("Detected HTTP/1.1"),
-//!     Ok(result) if result.protocol_type() == ProtocolType::QUIC => println!("Detected QUIC"),
-//!     _ => println!("Unknown protocol"),
-//! }
-//! # Ok(())
-//! # }
-//! ```
+//! 创建探测器实例，启用需要探测的协议，然后对数据进行探测。
 
 #![deny(missing_docs)]
 #![warn(clippy::all)]

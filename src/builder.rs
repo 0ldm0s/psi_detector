@@ -19,24 +19,8 @@ use std::sync::Arc;
 /// 
 /// 提供流畅的API来配置和创建协议探测器实例。
 /// 
-/// # 示例
-/// 
-/// ```rust
-/// use psi_detector::DetectorBuilder;
-/// use psi_detector::core::ProbeStrategy;
-/// use std::time::Duration;
-/// 
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let detector = DetectorBuilder::new()
-///     .enable_http()
-///     .enable_tls()
-///     .with_strategy(ProbeStrategy::Hybrid)
-///     .with_timeout(Duration::from_millis(200))
-///     .with_min_confidence(0.85)
-///     .build()?;
-/// # Ok(())
-/// # }
-/// ```
+///
+/// 通过链式调用配置探测器参数。
 pub struct DetectorBuilder {
     enabled_protocols: HashSet<ProtocolType>,
     probe_config: ProbeConfig,
@@ -345,7 +329,7 @@ impl DetectorBuilder {
         self.detection_config.timeout = Duration::from_millis(50);
         // 添加保护机制
         self.detection_config.min_probe_size = 16.max(self.detection_config.min_probe_size);
-        self.detection_config.max_probe_size = 4096.min(self.detection_config.max_probe_size);
+        self.detection_config.max_probe_size = (1024 * 1024).min(self.detection_config.max_probe_size);
         self
     }
     

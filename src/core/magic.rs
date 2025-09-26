@@ -3,6 +3,7 @@
 //! 基于协议的魔法字节（Magic Bytes）实现超高速启发式协议检测
 
 use crate::core::protocol::{ProtocolType, ProtocolInfo};
+use crate::core::tls_alpn::TlsAlpnDetector;
 use crate::error::{DetectorError, Result};
 use std::collections::HashMap;
 
@@ -85,6 +86,8 @@ pub struct MagicDetector {
     all_signatures: Vec<MagicSignature>,
     /// 启用的协议过滤器
     enabled_protocols: Option<Vec<ProtocolType>>,
+    /// TLS ALPN检测器
+    tls_alpn_detector: TlsAlpnDetector,
 }
 
 impl MagicDetector {
@@ -94,6 +97,7 @@ impl MagicDetector {
             byte_indexed_signatures: HashMap::new(),
             all_signatures: Vec::new(),
             enabled_protocols: None,
+            tls_alpn_detector: TlsAlpnDetector::new(),
         };
         
         // 预加载常见协议的魔法包特征
@@ -331,6 +335,22 @@ impl MagicDetector {
                 }
                 
                 if signature.matches(data) {
+                    // 如果检测到TLS，尝试ALPN检测
+                    if signature.protocol == ProtocolType::TLS {
+                        if let Some(alpn_result) = self.tls_alpn_detector.detect_alpn(data) {
+                            if let Some(alpn_info) = self.tls_alpn_detector.create_protocol_info(alpn_result) {
+                                // 检查ALPN检测到的协议是否在启用列表中
+                                if let Some(ref enabled) = self.enabled_protocols {
+                                    if enabled.contains(&alpn_info.protocol_type) {
+                                        return Some(alpn_info);
+                                    }
+                                } else {
+                                    return Some(alpn_info);
+                                }
+                            }
+                        }
+                    }
+                    
                     let mut info = ProtocolInfo::new(signature.protocol, signature.confidence);
                     info.add_metadata("detection_method", "magic_bytes");
                     info.add_metadata("signature_desc", &signature.description);

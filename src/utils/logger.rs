@@ -1,9 +1,9 @@
 //! 日志模块
 //!
-//! 封装zerg_creep日志库，提供统一的日志接口和配置。
+//! 封装rat_logger日志库，提供统一的日志接口和配置。
 
 use std::sync::Once;
-// use zerg_creep::prelude::*;  // 暂时注释，等待 zerg_creep 实现
+// use rat_logger::prelude::*;  // 暂时注释，等待 rat_logger 实现
 
 /// 日志配置
 #[derive(Debug, Clone)]
@@ -69,14 +69,14 @@ impl Default for LoggerConfig {
     }
 }
 
-// impl From<LogLevel> for zerg_creep::Level {
+// impl From<LogLevel> for rat_logger::Level {
 //     fn from(level: LogLevel) -> Self {
 //         match level {
-//             LogLevel::Error => zerg_creep::Level::Error,
-//             LogLevel::Warn => zerg_creep::Level::Warn,
-//             LogLevel::Info => zerg_creep::Level::Info,
-//             LogLevel::Debug => zerg_creep::Level::Debug,
-//             LogLevel::Trace => zerg_creep::Level::Trace,
+//             LogLevel::Error => rat_logger::Level::Error,
+//             LogLevel::Warn => rat_logger::Level::Warn,
+//             LogLevel::Info => rat_logger::Level::Info,
+//             LogLevel::Debug => rat_logger::Level::Debug,
+//             LogLevel::Trace => rat_logger::Level::Trace,
 //         }
 //     }
 // }
@@ -101,10 +101,10 @@ impl Logger {
         if !self.config.enabled {
             return Ok(());
         }
-        
-        // 暂时禁用 zerg_creep 相关功能
+
+        // 日志库初始化交给调用者处理，本库不自动初始化
         println!("Logger initialized with config: {:?}", self.config);
-        
+
         Ok(())
     }
     
@@ -162,7 +162,7 @@ macro_rules! psi_error {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Error) {
-                zerg_creep::error!($($arg)*);
+                rat_logger::error!($($arg)*);
             }
         }
     };
@@ -174,7 +174,7 @@ macro_rules! psi_warn {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Warn) {
-                zerg_creep::warn!($($arg)*);
+                rat_logger::warn!($($arg)*);
             }
         }
     };
@@ -186,7 +186,7 @@ macro_rules! psi_info {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Info) {
-                zerg_creep::info!($($arg)*);
+                rat_logger::info!($($arg)*);
             }
         }
     };
@@ -198,7 +198,7 @@ macro_rules! psi_debug {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Debug) {
-                zerg_creep::debug!($($arg)*);
+                rat_logger::debug!($($arg)*);
             }
         }
     };
@@ -210,7 +210,7 @@ macro_rules! psi_trace {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Trace) {
-                zerg_creep::trace!($($arg)*);
+                rat_logger::trace!($($arg)*);
             }
         }
     };
@@ -373,7 +373,7 @@ macro_rules! psi_detect {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Info) {
-                zerg_creep::info!("🔍 DETECT: {}", format!($($arg)*));
+                rat_logger::info!("🔍 DETECT: {}", format!($($arg)*));
             }
         }
     };
@@ -385,7 +385,7 @@ macro_rules! psi_upgrade {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Info) {
-                zerg_creep::info!("⬆️ UPGRADE: {}", format!($($arg)*));
+                rat_logger::info!("⬆️ UPGRADE: {}", format!($($arg)*));
             }
         }
     };
@@ -397,7 +397,7 @@ macro_rules! psi_mind_control {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Debug) {
-                zerg_creep::debug!("🧠 MIND_CONTROL: {}", format!($($arg)*));
+                rat_logger::debug!("🧠 MIND_CONTROL: {}", format!($($arg)*));
             }
         }
     };
@@ -409,7 +409,7 @@ macro_rules! psi_scan {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Trace) {
-                zerg_creep::trace!("📡 SCAN: {}", format!($($arg)*));
+                rat_logger::trace!("📡 SCAN: {}", format!($($arg)*));
             }
         }
     };
@@ -421,7 +421,7 @@ macro_rules! psi_perf {
     ($($arg:tt)*) => {
         if let Some(logger) = $crate::utils::logger::get_logger() {
             if logger.is_enabled(&$crate::utils::logger::LogLevel::Debug) {
-                zerg_creep::debug!("⚡ PERF: {}", format!($($arg)*));
+                rat_logger::debug!("⚡ PERF: {}", format!($($arg)*));
             }
         }
     };

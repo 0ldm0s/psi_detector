@@ -680,7 +680,7 @@ impl Default for DetectionConfig {
             timeout: Duration::from_millis(1000),
             enable_heuristic: true,
             enable_active_probing: false,
-            max_probe_size: 4096,
+            max_probe_size: 1024 * 1024,  // 增加到1MB以支持gRPC大帧
             min_probe_size: 16,  // 默认16字节，适合大多数协议
             enable_simd: true,
         }
@@ -802,7 +802,7 @@ impl Agent {
             state.last_activity = Instant::now();
         } else {
             // 如果获取锁失败，记录警告但不阻塞
-            zerg_creep::warn!("Failed to acquire lock for connection count update");
+            rat_logger::warn!("Failed to acquire lock for connection count update");
         }
         Ok(())
     }
