@@ -179,7 +179,7 @@ impl ProtocolProbe for DnsProbe {
     }
     
     fn supported_protocols(&self) -> Vec<ProtocolType> {
-        vec![ProtocolType::Unknown] // DNS 暂时归类为 Unknown，实际项目中可以添加 DNS 类型
+        vec![ProtocolType::Custom] // 使用Custom类型表示自定义协议
     }
     
     fn probe(&self, data: &[u8], context: &mut ProbeContext) -> Result<Option<ProtocolInfo>> {
@@ -192,10 +192,11 @@ impl ProtocolProbe for DnsProbe {
         let confidence = self.calculate_confidence(data);
         
         if confidence > 0.5 {
-            let mut protocol_info = ProtocolInfo::new(ProtocolType::Unknown, confidence);
+            let mut protocol_info = ProtocolInfo::new(ProtocolType::Custom, confidence);
             protocol_info.add_feature("DNS-UDP");
             protocol_info.add_feature(format!("confidence-{:.1}%", confidence * 100.0));
             protocol_info.add_metadata("transport", "UDP");
+            protocol_info.add_metadata("protocol_name", "DNS"); // 标识具体的协议名称
             protocol_info.add_metadata("details", format!("DNS packet detected (UDP), confidence: {:.1}%", confidence * 100.0));
             
             context.add_candidate(protocol_info.clone());
@@ -259,16 +260,17 @@ impl ProtocolProbe for MqttProbe {
     }
     
     fn supported_protocols(&self) -> Vec<ProtocolType> {
-        vec![ProtocolType::Unknown] // 实际项目中可以是 ProtocolType::MQTT
+        vec![ProtocolType::Custom] // 使用Custom类型表示自定义协议
     }
-    
+
     fn probe(&self, data: &[u8], context: &mut ProbeContext) -> Result<Option<ProtocolInfo>> {
         if self.is_mqtt_connect(data) {
-            let mut protocol_info = ProtocolInfo::new(ProtocolType::Unknown, 0.9);
+            let mut protocol_info = ProtocolInfo::new(ProtocolType::Custom, 0.9);
             protocol_info.add_feature("MQTT-CONNECT");
             protocol_info.add_metadata("transport", "TCP");
+            protocol_info.add_metadata("protocol_name", "MQTT"); // 标识具体的协议名称
             protocol_info.add_metadata("details", "MQTT CONNECT packet detected");
-            
+
             context.add_candidate(protocol_info.clone());
             Ok(Some(protocol_info))
         } else {
@@ -296,6 +298,7 @@ fn demonstrate_dns_plugin() -> Result<()> {
     let detector = DetectorBuilder::new()
         .enable_http() // 保留基础协议支持
         .enable_tls()
+        .enable_custom() // 启用自定义协议支持
         .add_custom_probe(Box::new(dns_probe)) // 添加自定义 DNS 探测器
         .with_strategy(ProbeStrategy::Passive)
         .with_timeout(Duration::from_millis(100))
@@ -334,6 +337,7 @@ fn demonstrate_multi_plugin_integration() -> Result<()> {
         .enable_http()
         .enable_tls()
         .enable_ssh()
+        .enable_custom()
         .add_custom_probe(Box::new(DnsProbe::new()))
         .add_custom_probe(Box::new(MqttProbe::new()))
         .with_strategy(ProbeStrategy::Passive)
@@ -388,6 +392,7 @@ fn demonstrate_plugin_priority() -> Result<()> {
     
     let detector = DetectorBuilder::new()
         .enable_http() // 启用基础协议
+        .enable_custom() // 启用自定义协议
         .add_custom_probe(Box::new(low_priority_dns))
         .add_custom_probe(Box::new(high_priority_dns))
         .build()?;

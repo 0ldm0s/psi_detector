@@ -241,11 +241,20 @@ impl ProbeAggregator {
         if results.is_empty() {
             return None;
         }
-        
+
+        // 过滤掉Unknown类型的结果，但保留Custom类型
+        let valid_results: Vec<ProtocolInfo> = results.into_iter()
+            .filter(|info| info.protocol_type != ProtocolType::Unknown)
+            .collect();
+
+        if valid_results.is_empty() {
+            return None;
+        }
+
         // 按置信度排序
-        let mut sorted_results = results;
+        let mut sorted_results = valid_results;
         sorted_results.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
-        
+
         // 检查最高置信度是否满足阈值
         let best = &sorted_results[0];
         if best.confidence >= self.config.min_confidence {
