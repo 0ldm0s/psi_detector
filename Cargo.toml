@@ -6,6 +6,10 @@ authors = ["0ldm0s <oldmos@gmail.com>"]
 description = "Protocol detection and upgrade framework inspired by Yuri's PSI Detector"
 keywords = ["protocol", "detection", "upgrade", "simd", "networking"]
 categories = ["network-programming", "parsing"]
+license = "LGPL-3.0"
+repository = "https://github.com/0ldm0s/psi_detector.git"
+homepage = "https://github.com/0ldm0s/psi_detector"
+documentation = "https://docs.rs/psi_detector"
 
 [features]
 default = ["basic", "simd-accel"]
