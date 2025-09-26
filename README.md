@@ -1,8 +1,9 @@
 # PSI-Detector 🧙‍♂️
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-LGPL--v3-blue.svg)](LICENSE)
 [![Performance](https://img.shields.io/badge/performance-2.3x_faster-green.svg)](examples/protocol_filtering_performance.rs)
+[![Version](https://img.shields.io/crates/v/psi_detector.svg)](https://crates.io/crates/psi_detector)
 
 **PSI-Detector** (Protocol Stream Identifier Detector) 是一个高性能的协议检测和升级框架，专为现代网络应用设计。通过智能的协议识别、魔法包特征检测和严格的过滤机制，为您的网络服务提供企业级的性能和安全保障。
 
